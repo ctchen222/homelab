@@ -1,0 +1,34 @@
+services:
+  - id: ezbookkeeping
+    name: ezBookkeeping
+    namespace: finops
+    url: https://ezbookkeeping.finops.internal
+    healthPath: /
+    sensitivity: personal-finance
+    status: planned
+    docs: docs/finops/operations-runbook.md
+  - id: finops-assistant
+    name: FinOps Assistant
+    namespace: finops
+    url: https://finops-assistant.finops.internal
+    healthPath: /healthz
+    sensitivity: personal-finance
+    status: planned
+    docs: docs/finops/operations-runbook.md
+  - id: wealthfolio
+    name: Wealthfolio
+    namespace: finops
+    url: https://wealthfolio.finops.internal
+    healthPath: /
+    sensitivity: personal-portfolio
+    status: planned
+    docs: docs/finops/operations-runbook.md
+  - id: finops-market-research
+    name: FinOps Market Research
+    namespace: finops
+    url: ""
+    healthPath: ""
+    sensitivity: investment-research
+    status: planned
+    docs: docs/finops/operations-runbook.md
+

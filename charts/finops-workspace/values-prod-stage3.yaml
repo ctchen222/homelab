@@ -1,0 +1,13 @@
+# Stage 3: + Daily and end-of-day report schedules.
+# Pre-requisites beyond stage 2:
+#   - Run /internal/reports/daily once from inside k3s and verify Telegram delivery
+#   - Run /internal/reports/end-of-day-spending once and verify delivery
+#   - Only enable schedules after both one-off triggers succeed
+# Verify after sync:
+#   - CronJobs for dailyReport and endOfDaySpendingReport are present and not suspended
+#   - First scheduled run completes without error
+wealthfolio:
+  enabled: false
+
+marketResearch:
+  enabled: false

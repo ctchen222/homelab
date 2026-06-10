@@ -1,0 +1,58 @@
+global:
+  createNamespace: true
+  createDevSecret: false
+  existingSecretName: finops-secrets
+  ingressClassName: traefik
+  storageClassName: local-path
+  # GHCR PAT secret — create before first sync:
+  #   kubectl create secret docker-registry ghcr-credentials \
+  #     --docker-server=ghcr.io \
+  #     --docker-username=ctchen222 \
+  #     --docker-password=<PAT> \
+  #     -n finops
+  imagePullSecrets:
+    - name: ghcr-credentials
+  basicAuthSecretName: finops-basic-auth
+  privateAccess:
+    enabled: true
+    annotations:
+      traefik.ingress.kubernetes.io/router.middlewares: finops-private-access@kubernetescrd
+
+ezbookkeeping:
+  image:
+    tag: "0.8.1"
+  # Plain HTTP IP:port access for no-domain first release.
+  # Update to HTTPS domain once TLS/VPN is in place.
+  serverDomain: "178.156.151.78"
+  serverRootUrl: "http://178.156.151.78:8080/"
+  ingress:
+    enabled: false
+  ingressRoute:
+    enabled: true
+    entryPoint: finopsez
+
+assistant:
+  image:
+    repository: ghcr.io/ctchen222/finops-assistant
+    tag: "0.1.0"
+  ingress:
+    enabled: false
+  webhookIngress:
+    enabled: true
+    host: finops-assistant.178-156-151-78.sslip.io
+
+wealthfolio:
+  image:
+    tag: "1.4.0"
+  authRequired: true
+  corsAllowOrigins: "http://178.156.151.78:8081"
+  ingress:
+    enabled: false
+  ingressRoute:
+    enabled: true
+    entryPoint: finopswf
+
+marketResearch:
+  image:
+    repository: ghcr.io/ctchen222/finops-market-research
+    tag: "0.1.0"

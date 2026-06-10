@@ -1,0 +1,38 @@
+{{- if and .Values.assistant.enabled .Values.endOfDaySpendingReport.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "finops.fullname" . }}-end-of-day-spending
+  labels:
+    {{- include "finops.labels" . | nindent 4 }}
+    app.kubernetes.io/component: end-of-day-spending-report
+spec:
+  schedule: {{ .Values.endOfDaySpendingReport.schedule | quote }}
+  timeZone: {{ .Values.endOfDaySpendingReport.timeZone | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: trigger
+              image: "{{ .Values.endOfDaySpendingReport.image.repository }}:{{ .Values.endOfDaySpendingReport.image.tag }}"
+              imagePullPolicy: {{ .Values.endOfDaySpendingReport.image.pullPolicy }}
+              command: ["/bin/sh", "-ec"]
+              args:
+                - >
+                  curl -fsS -X POST
+                  -H "X-Internal-Token: ${ASSISTANT_INTERNAL_TOKEN}"
+                  "http://{{ include "finops.fullname" . }}-assistant:{{ .Values.assistant.service.port }}/internal/reports/end-of-day-spending"
+              env:
+                - name: ASSISTANT_INTERNAL_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "finops.secretName" . }}
+                      key: assistant-internal-token
+              resources:
+                {{- toYaml .Values.endOfDaySpendingReport.resources | nindent 16 }}
+{{- end }}

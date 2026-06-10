@@ -1,0 +1,31 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: finops-workspace
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/ctchen222/homelab.git
+    targetRevision: main
+    path: charts/finops-workspace
+    helm:
+      valueFiles:
+        - values-prod.yaml
+        # Advance stages by changing this file to the next stage:
+        #   values-prod-stage1.yaml  → ezBookkeeping only
+        #   values-prod-stage2.yaml  → + assistant + webhook
+        #   values-prod-stage3.yaml  → + report schedules
+        #   values-prod-stage4.yaml  → + market research
+        #   values-prod-stage5.yaml  → + wealthfolio (full)
+        - values-prod-stage1.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: finops
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: false
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

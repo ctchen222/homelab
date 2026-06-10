@@ -1,0 +1,12 @@
+# Stage 4: + Market research CronJob.
+# Pre-requisites beyond stage 3:
+#   - Verify ghcr.io/ctchen222/finops-market-research:0.1.0 is pullable (imagePullSecrets active)
+#   - Run one-off job from CronJob template: kubectl create job market-research-test \
+#     --from=cronjob/finops-workspace-market-research -n finops
+#   - Verify job reads watchlist ConfigMap and writes report output
+#   - Check partial-failure behavior (provider unavailable) does not block finops health
+# Verify after sync:
+#   - CronJob for marketResearch is present
+#   - Node resource usage after first job run is within thresholds
+wealthfolio:
+  enabled: false

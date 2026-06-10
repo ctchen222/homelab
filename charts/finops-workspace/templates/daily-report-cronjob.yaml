@@ -1,0 +1,39 @@
+{{- if and .Values.assistant.enabled .Values.dailyReport.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "finops.fullname" . }}-daily-report
+  labels:
+    {{- include "finops.labels" . | nindent 4 }}
+    app.kubernetes.io/component: daily-report
+spec:
+  schedule: {{ .Values.dailyReport.schedule | quote }}
+  timeZone: {{ .Values.dailyReport.timeZone | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: trigger
+              image: "{{ .Values.dailyReport.image.repository }}:{{ .Values.dailyReport.image.tag }}"
+              imagePullPolicy: {{ .Values.dailyReport.image.pullPolicy }}
+              command: ["/bin/sh", "-ec"]
+              args:
+                - >
+                  curl -fsS -X POST
+                  -H "X-Internal-Token: ${ASSISTANT_INTERNAL_TOKEN}"
+                  "http://{{ include "finops.fullname" . }}-assistant:{{ .Values.assistant.service.port }}/internal/reports/daily"
+              env:
+                - name: ASSISTANT_INTERNAL_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "finops.secretName" . }}
+                      key: assistant-internal-token
+              resources:
+                {{- toYaml .Values.dailyReport.resources | nindent 16 }}
+{{- end }}
+
