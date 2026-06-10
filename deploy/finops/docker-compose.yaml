@@ -1,0 +1,185 @@
+services:
+  ezbookkeeping:
+    image: mayswind/ezbookkeeping:latest
+    ports:
+      - "8080:8080"
+    environment:
+      TZ: Asia/Taipei
+      EBK_DATABASE_TYPE: sqlite3
+      EBK_DATABASE_DB_PATH: /ezbookkeeping/data/ezbookkeeping.db
+      EBK_STORAGE_LOCAL_FILESYSTEM_PATH: /ezbookkeeping/storage/
+      EBK_SECURITY_ENABLE_API_TOKEN: "true"
+      EBK_SECURITY_SECRET_KEY: ${EZBOOKKEEPING_SECRET_KEY}
+    volumes:
+      - ezbookkeeping-data:/ezbookkeeping/data
+      - ezbookkeeping-storage:/ezbookkeeping/storage
+
+  wealthfolio:
+    image: wealthfolio/wealthfolio:latest
+    ports:
+      - "8088:8088"
+    environment:
+      TZ: Asia/Taipei
+      WF_LISTEN_ADDR: 0.0.0.0:8088
+      WF_DB_PATH: /data/wealthfolio.db
+      WF_SECRET_KEY: ${WEALTHFOLIO_SECRET_KEY}
+      WF_AUTH_REQUIRED: ${WEALTHFOLIO_AUTH_REQUIRED:-false}
+      WF_AUTH_PASSWORD_HASH: ${WEALTHFOLIO_AUTH_PASSWORD_HASH:-}
+    volumes:
+      - wealthfolio-data:/data
+
+  finops-assistant:
+    build:
+      context: ../../apps/finops-assistant
+    ports:
+      - "8090:8090"
+    environment:
+      NODE_ENV: development
+      PORT: "8090"
+      TZ: Asia/Taipei
+      ASSISTANT_DB_PATH: /data/assistant.sqlite
+      PORTFOLIO_DB_PATH: /data/portfolio/portfolio.sqlite
+      PORTFOLIO_EXPORT_DIR: /data/portfolio/exports
+      PORTFOLIO_ACCOUNT_IDENTITY_SALT: ${PORTFOLIO_ACCOUNT_IDENTITY_SALT:-}
+      PORTFOLIO_WRITER_LEASE_MINUTES: ${PORTFOLIO_WRITER_LEASE_MINUTES:-30}
+      PORTFOLIO_SNAPSHOT_RETENTION_DAYS: ${PORTFOLIO_SNAPSHOT_RETENTION_DAYS:-30}
+      PORTFOLIO_EXPORT_RETENTION_DAYS: ${PORTFOLIO_EXPORT_RETENTION_DAYS:-90}
+      PORTFOLIO_RAW_IMPORT_RETENTION_DAYS: ${PORTFOLIO_RAW_IMPORT_RETENTION_DAYS:-90}
+      SINOPAC_API_KEY: ${SINOPAC_API_KEY:-}
+      SINOPAC_SECRET_KEY: ${SINOPAC_SECRET_KEY:-}
+      SINOPAC_CA_PATH: ${SINOPAC_CA_PATH:-/run/secrets/sinopac/sinopac_API_credential.pfx}
+      SINOPAC_CA_PASSWORD: ${SINOPAC_CA_PASSWORD:-}
+      SINOPAC_PERSON_ID: ${SINOPAC_PERSON_ID:-}
+      SINOPAC_SHIOAJI_COMMAND: ${SINOPAC_SHIOAJI_COMMAND:-/app/scripts/sinopac_shioaji_snapshot.py}
+      SINOPAC_SHIOAJI_TIMEOUT_MS: ${SINOPAC_SHIOAJI_TIMEOUT_MS:-90000}
+      REPORT_DIR: /data/reports
+      WATCHLIST_PATH: /config/watchlist.json
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      TELEGRAM_WEBHOOK_SECRET: ${TELEGRAM_WEBHOOK_SECRET}
+      TELEGRAM_ALLOWED_USER_IDS: ${TELEGRAM_ALLOWED_USER_IDS}
+      TELEGRAM_REPORT_CHAT_ID: ${TELEGRAM_REPORT_CHAT_ID:-}
+      EZBOOKKEEPING_BASE_URL: http://ezbookkeeping:8080
+      EZBOOKKEEPING_API_TOKEN: ${EZBOOKKEEPING_API_TOKEN}
+      EZBOOKKEEPING_ACCOUNT_IDS: ${EZBOOKKEEPING_ACCOUNT_IDS:-{}}
+      EZBOOKKEEPING_CATEGORY_IDS: ${EZBOOKKEEPING_CATEGORY_IDS:-{}}
+      ASSISTANT_INTERNAL_TOKEN: ${ASSISTANT_INTERNAL_TOKEN}
+      LLM_ENABLED: ${LLM_ENABLED:-false}
+      LLM_SUMMARY_ENDPOINT: ${LLM_SUMMARY_ENDPOINT:-}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+    volumes:
+      - assistant-data:/data
+      - portfolio-data:/data/portfolio
+      - ../../config/finops/watchlist.json:/config/watchlist.json:ro
+      - ../../sinopac_API_credential.pfx:/run/secrets/sinopac/sinopac_API_credential.pfx:ro
+    depends_on:
+      - ezbookkeeping
+
+  portfolio-sync-fixture:
+    image: curlimages/curl:8.7.1
+    profiles: ["jobs"]
+    depends_on:
+      - finops-assistant
+    environment:
+      ASSISTANT_INTERNAL_TOKEN: ${ASSISTANT_INTERNAL_TOKEN}
+      PORTFOLIO_FIXTURE_BROKER_ID: ${PORTFOLIO_FIXTURE_BROKER_ID:-fixture}
+      PORTFOLIO_FIXTURE_ACCOUNT_ALIAS: ${PORTFOLIO_FIXTURE_ACCOUNT_ALIAS:-fixture-main}
+      PORTFOLIO_FIXTURE_ADAPTER_ID: ${PORTFOLIO_FIXTURE_ADAPTER_ID:-fixture-broker}
+      PORTFOLIO_FIXTURE_SCENARIO: ${PORTFOLIO_FIXTURE_SCENARIO:-complete}
+      PORTFOLIO_FIXTURE_REQUESTED_AT: ${PORTFOLIO_FIXTURE_REQUESTED_AT:-2026-06-06T02:00:00.000Z}
+    command:
+      - /bin/sh
+      - -ec
+      - >
+        curl -fsS -X POST
+        -H "Content-Type: application/json"
+        -H "X-Internal-Token: $${ASSISTANT_INTERNAL_TOKEN}"
+        -d "{\"brokerId\":\"$${PORTFOLIO_FIXTURE_BROKER_ID}\",\"accountAlias\":\"$${PORTFOLIO_FIXTURE_ACCOUNT_ALIAS}\",\"adapterId\":\"$${PORTFOLIO_FIXTURE_ADAPTER_ID}\",\"scenario\":\"$${PORTFOLIO_FIXTURE_SCENARIO}\",\"requestedAt\":\"$${PORTFOLIO_FIXTURE_REQUESTED_AT}\"}"
+        http://finops-assistant:8090/internal/portfolio/sync/fixture
+
+  portfolio-sync-sinopac-live:
+    image: curlimages/curl:8.7.1
+    profiles: ["jobs"]
+    depends_on:
+      - finops-assistant
+    environment:
+      ASSISTANT_INTERNAL_TOKEN: ${ASSISTANT_INTERNAL_TOKEN}
+      SINOPAC_ACCOUNT_ALIAS: ${SINOPAC_ACCOUNT_ALIAS:-sinopac-main}
+      SINOPAC_REQUESTED_AT: ${SINOPAC_REQUESTED_AT:-}
+    command:
+      - /bin/sh
+      - -ec
+      - >
+        REQUESTED_AT="$${SINOPAC_REQUESTED_AT:-$$(date -u +"%Y-%m-%dT%H:%M:%SZ")}";
+        curl -fsS -X POST
+        -H "Content-Type: application/json"
+        -H "X-Internal-Token: $${ASSISTANT_INTERNAL_TOKEN}"
+        -d "{\"brokerId\":\"sinopac\",\"accountAlias\":\"$${SINOPAC_ACCOUNT_ALIAS}\",\"requestedAt\":\"$${REQUESTED_AT}\"}"
+        http://finops-assistant:8090/internal/portfolio/sync/live
+
+  wealthfolio-export:
+    image: curlimages/curl:8.7.1
+    profiles: ["jobs"]
+    depends_on:
+      - finops-assistant
+    environment:
+      ASSISTANT_INTERNAL_TOKEN: ${ASSISTANT_INTERNAL_TOKEN}
+      PORTFOLIO_EXPORT_TARGET: ${PORTFOLIO_EXPORT_TARGET:-wealthfolio-local}
+      PORTFOLIO_EXPORT_FORMAT: ${PORTFOLIO_EXPORT_FORMAT:-json}
+      PORTFOLIO_EXPORT_INCLUDE_PARTIAL_OR_STALE: ${PORTFOLIO_EXPORT_INCLUDE_PARTIAL_OR_STALE:-false}
+    command:
+      - /bin/sh
+      - -ec
+      - >
+        curl -fsS -X POST
+        -H "Content-Type: application/json"
+        -H "X-Internal-Token: $${ASSISTANT_INTERNAL_TOKEN}"
+        -d "{\"target\":\"$${PORTFOLIO_EXPORT_TARGET}\",\"format\":\"$${PORTFOLIO_EXPORT_FORMAT}\",\"includePartialOrStale\":$${PORTFOLIO_EXPORT_INCLUDE_PARTIAL_OR_STALE}}"
+        http://finops-assistant:8090/internal/portfolio/wealthfolio/export
+
+  wealthfolio-snapshot-sync:
+    build:
+      context: ../../apps/finops-assistant
+    profiles: ["jobs"]
+    depends_on:
+      - finops-assistant
+      - wealthfolio
+    environment:
+      TZ: Asia/Taipei
+      PORTFOLIO_DB_PATH: /data/portfolio/portfolio.sqlite
+      WEALTHFOLIO_DB_PATH: /data/wealthfolio/wealthfolio.db
+      WEALTHFOLIO_SYNC_BROKER_ID: ${WEALTHFOLIO_SYNC_BROKER_ID:-sinopac}
+      WEALTHFOLIO_SYNC_ACCOUNT_ALIAS: ${WEALTHFOLIO_SYNC_ACCOUNT_ALIAS:-sinopac-main}
+      WEALTHFOLIO_DISPLAY_CURRENCY: ${WEALTHFOLIO_DISPLAY_CURRENCY:-TWD}
+      WEALTHFOLIO_EXCHANGE_RATES: ${WEALTHFOLIO_EXCHANGE_RATES:-USD:TWD=32.1}
+      WEALTHFOLIO_SYNC_DRY_RUN: ${WEALTHFOLIO_SYNC_DRY_RUN:-false}
+    entrypoint: ["node", "/app/scripts/wealthfolio_snapshot_sync.js"]
+    volumes:
+      - portfolio-data:/data/portfolio
+      - wealthfolio-data:/data/wealthfolio
+
+  market-research:
+    image: python:3.12-slim
+    profiles: ["jobs"]
+    working_dir: /app
+    command:
+      - python
+      - /app/market_research.py
+      - --watchlist
+      - /config/watchlist.json
+      - --output
+      - /reports/market-report.json
+    environment:
+      TZ: Asia/Taipei
+      LLM_ENABLED: ${LLM_ENABLED:-false}
+    volumes:
+      - ../../jobs/market-research:/app:ro
+      - ../../config/finops/watchlist.json:/config/watchlist.json:ro
+      - market-reports:/reports
+
+volumes:
+  ezbookkeeping-data:
+  ezbookkeeping-storage:
+  wealthfolio-data:
+  assistant-data:
+  portfolio-data:
+  market-reports:

@@ -1,0 +1,51 @@
+{
+  "timezone": "Asia/Taipei",
+  "report": {
+    "marketOpenTimezone": "America/New_York",
+    "sendBeforeMarketOpenMinutes": 15,
+    "riskDisclosure": "Research commentary only. No broker execution and no guaranteed outcome."
+  },
+  "symbols": [
+    {
+      "market": "TWSE",
+      "ticker": "0050",
+      "displayName": "Yuanta Taiwan 50 ETF",
+      "currency": "TWD",
+      "dataSource": "twse-openapi",
+      "providerSymbol": "0050"
+    },
+    {
+      "market": "TWSE",
+      "ticker": "2330",
+      "displayName": "TSMC",
+      "currency": "TWD",
+      "dataSource": "twse-openapi",
+      "providerSymbol": "2330"
+    },
+    {
+      "market": "NASDAQ",
+      "ticker": "QQQ",
+      "displayName": "Invesco QQQ Trust",
+      "currency": "USD",
+      "dataSource": "openbb-yfinance",
+      "providerSymbol": "QQQ"
+    },
+    {
+      "market": "NYSEARCA",
+      "ticker": "VTI",
+      "displayName": "Vanguard Total Stock Market ETF",
+      "currency": "USD",
+      "dataSource": "openbb-yfinance",
+      "providerSymbol": "VTI"
+    },
+    {
+      "market": "CRYPTO",
+      "ticker": "BTC-USD",
+      "displayName": "Bitcoin",
+      "currency": "USD",
+      "dataSource": "openbb-yfinance",
+      "providerSymbol": "BTC-USD"
+    }
+  ]
+}
+
