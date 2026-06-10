@@ -45,13 +45,11 @@ log "Step 2/3: verify ghcr-credentials secret in Kubernetes"
 if kubectl --context "${CONTEXT}" -n "${NAMESPACE}" get secret "${SECRET_NAME}" >/tmp/finops-ghcr-secret-check.log 2>&1; then
   log "secret exists: ${NAMESPACE}/${SECRET_NAME}"
 
-  raw=$(kubectl --context "${CONTEXT}" -n "${NAMESPACE}" get secret "${SECRET_NAME}" \
-    -o jsonpath='{.data..dockerconfigjson}')
+  raw=$(kubectl --context "${CONTEXT}" -n "${NAMESPACE}" get secret "${SECRET_NAME}" \\\n    -o jsonpath='{.data..dockerconfigjson}')
   decoded=$(printf '%s' "${raw}" | base64 --decode)
   log "secret decode preview: ${decoded:0:80}..."
 
-  username=$(printf '%s' "${decoded}" | python3 - <<
-$P)
+  username=$(printf '%s' "${decoded}" | python3 - <<'PY'
 import sys, json
 config = json.load(sys.stdin)
 print(config.get('auths', {}).get('ghcr.io', {}).get('username', ''))
@@ -62,16 +60,17 @@ PY
   elif [[ "${username}" != "${EXPECTED_USERNAME}" ]]; then
     log "warning: secret username is ${username}, expected ${EXPECTED_USERNAME}"
   else
-    log "secrt username matches expected owner: ${EXPECTED_Username}"
+    log "secret username matches expected owner: ${EXPECTED_USERNAME}"
   fi
 else
-   log "warning: unable to read secret ${NAMESPACE}/${SECRET_NAME}; skipping Kubernetes-only assertions"
+  log "warning: unable to read secret ${NAMESPACE}/${SECRET_NAME}; skipping Kubernetes-only assertions"
 fi
 
 log "Step 3/3: smoke-check image pull through Kubernetes with the same pull secret"
 tmp_job=$(mktemp)
 cat >"${tmp_job}" <<YAML
-apiVersion: batch/v1	+ind: Job
+apiVersion: batch/v1
+kind: Job
 metadata:
   name: ${JOB_FULL_NAME}
   namespace: ${NAMESPACE}
@@ -113,3 +112,4 @@ log "k8s image pull smoke job completed. logs:"
 kubectl --context "${CONTEXT}" logs -n "${NAMESPACE}" -l "job-name=${JOB_FULL_NAME}" --all-containers=true
 
 log "Verification complete."
+# marker: fixed-main-branch-target-test
