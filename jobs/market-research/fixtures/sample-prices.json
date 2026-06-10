@@ -1,0 +1,28 @@
+{
+  "0050": {
+    "currentPrice": 190.25,
+    "previousReferencePrice": 188.5,
+    "notes": ["offline fixture for local dry-run"]
+  },
+  "2330": {
+    "currentPrice": 1000,
+    "previousReferencePrice": 980,
+    "notes": ["offline fixture for local dry-run"]
+  },
+  "QQQ": {
+    "currentPrice": 510.5,
+    "previousReferencePrice": 508.1,
+    "notes": ["offline fixture for local dry-run"]
+  },
+  "VTI": {
+    "currentPrice": 295.2,
+    "previousReferencePrice": 296.4,
+    "notes": ["offline fixture for local dry-run"]
+  },
+  "BTC-USD": {
+    "currentPrice": 104000,
+    "previousReferencePrice": 102500,
+    "notes": ["offline fixture for local dry-run"]
+  }
+}
+

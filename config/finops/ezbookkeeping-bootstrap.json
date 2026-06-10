@@ -1,0 +1,31 @@
+{
+  "timezone": "Asia/Taipei",
+  "primaryCurrency": "TWD",
+  "currencies": ["TWD", "USD"],
+  "accounts": [
+    { "name": "Cash", "type": "cash", "currency": "TWD" },
+    { "name": "Primary Bank", "type": "bank", "currency": "TWD" },
+    { "name": "Credit Card", "type": "credit_card", "currency": "TWD" },
+    { "name": "Brokerage USD", "type": "investment", "currency": "USD" }
+  ],
+  "expenseCategories": [
+    "Food",
+    "Transport",
+    "Housing",
+    "Utilities",
+    "Healthcare",
+    "Learning",
+    "Subscriptions",
+    "Travel",
+    "Other"
+  ],
+  "incomeCategories": ["Salary", "Interest", "Dividend", "Refund", "Other"],
+  "transferCategories": ["Account Transfer", "Brokerage Funding"],
+  "importExport": {
+    "enableImport": true,
+    "enableExport": true,
+    "acceptedFormats": ["csv", "ofx", "qfx", "qif"],
+    "notes": "Use ezBookkeeping UI/API for machine-readable exports. Do not scrape the SQLite database for normal exports."
+  }
+}
+
