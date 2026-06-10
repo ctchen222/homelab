@@ -178,7 +178,7 @@ Telegram overview commands:
 - `overview 7d`: last 7 days overview.
 - `overview month`: current local month overview, based on the configured timezone.
 
-Overview replies include income total, expense total, net cashflow, transaction counts, income and expense category percentages, account movement, text bars, and pending review count. The assistant currently renders chart-like text bars directly in the Telegram message so the webhook response path works without publishing private finance charts or requiring outbound Telegram file upload. Telegram can send image charts with `sendPhoto`, but production should only enable that after deciding where charts are rendered, how private chart artifacts are protected, and whether the assistant can reliably reach the Telegram Bot API.
+Overview replies include income total, expense total, transaction counts, income and expense category percentages, account movement, text bars, and pending review count. The assistant currently renders chart-like text bars directly in the Telegram message so the webhook response path works without publishing private finance charts or requiring outbound Telegram file upload. Telegram can send image charts with `sendPhoto`, but production should only enable that after deciding where charts are rendered, how private chart artifacts are protected, and whether the assistant can reliably reach the Telegram Bot API.
 
 Security behavior:
 
@@ -252,7 +252,7 @@ Restore and purge workflow:
 Broker-specific checks before production enablement:
 
 - SinoPac: confirm which Shioaji read-only endpoints are available after owner login.
-- Firstrade: current repo path is CSV/export import only. Do not enable a Firstrade live connector until Plaid/Apex/Firstrade-approved evidence confirms consent, pricing, refresh, rate limits, field coverage, and read-only terms.
+- Firstrade: current repo path is CSV/export import only. Do not enable a Firstrade live connector until Plaid/Apex/Firstrade-approved evidence confirms consent, pricing, refresh, field coverage, and read-only terms.
 - Wealthfolio: review the first display/export with real or sanitized data before enabling scheduled export.
 
 See also: [Portfolio Sync User Validation Checklist](/Users/ctchen/Development/project/homelab/docs/finops/portfolio-sync-user-validation.md) for 7.2~7.7 evidence collection.
@@ -343,9 +343,21 @@ kubectl create secret generic finops-basic-auth \
 ```bash
 kubectl create secret docker-registry ghcr-credentials \
   --docker-server=ghcr.io \
-  --docker-username=ctchen \
-  --docker-password=<GHCR_PAT> \
+  --docker-username=ctchen222 \
+  --docker-password=<GHCR_PAT_WITH_READ_PACKAGES> \
   -n finops
+```
+
+`<GHCR_PAT_WITH_READ_PACKAGES>` 至少需有 `read:packages` 權限；若 PAT 會變更或重新產生，需刪除重建該 secret 並重啟 FinOps Pod。
+
+```bash
+kubectl delete secret ghcr-credentials -n finops
+kubectl create secret docker-registry ghcr-credentials \
+  --docker-server=ghcr.io \
+  --docker-username=ctchen222 \
+  --docker-password=<NEW_GHCR_PAT_WITH_READ_PACKAGES> \
+  -n finops
+kubectl -n finops delete pod -l app.kubernetes.io/instance=finops-workspace
 ```
 
 Do not commit real values. VPS firewall: open ports 8080 and 8081 before syncing Stage 1.
