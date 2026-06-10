@@ -57,6 +57,9 @@ FINOPS_ASSISTANT_IMAGE=ghcr.io/ctchen222/finops-assistant \
 FINOPS_MARKET_IMAGE=ghcr.io/ctchen222/finops-market-research \
 bash scripts/verify-finops-images.sh 0.1.0 \
   | tee /tmp/finops-image-verify-$(date +%F-%H%M%S).log
+
+# 某些受限網路下若 GHCR manifest 無法查詢，可改用：
+VERIFY_MANIFEST=0 bash scripts/verify-finops-images.sh 0.1.0
 ```
 
 ## 5) VPS 上的實務驗證
