@@ -36,7 +36,7 @@
 
 ## 4. Assistant and Finance Reports Stage
 
-- [ ] 4.1 Enable the FinOps assistant through a GitHub Operations via a GitOps commit with ezBookkeeping API token, Telegram allowlist, `TELEGRAM_REPORT_CHAT_ID`, SQLite PVC, and watchlist ConfigMap.
+- [ ] 4.1 Enable the FinOps assistant through a GitOps commit with ezBookkeeping API token, Telegram allowlist, `TELEGRAM_REPORT_CHAT_ID`, SQLite PVC, and watchlist ConfigMap.
 - [ ] 4.2 Verify `/healthz`, `/readyz`, service DNS, probes, PVC, ConfigMap, and resource usage.
 - [ ] 4.3 Configure Telegram webhook with `setWebhook` using the public HTTPS assistant URL, `secret_token`, required `allowed_updates`, and `drop_pending_updates=true` for the first production cutover.
 - [ ] 4.4 Verify Telegram webhook with `getWebhookInfo`, secret-token validation, allowlist rejection, idempotency, unknown-category review, and one non-production ezBookkeeping write.
@@ -68,4 +68,4 @@
 - [ ] 7.3 Document rollback commands that disable schedules, assistant, Wealthfolio, and ezBookkeeping without deleting PVCs.
 - [ ] 7.4 Document backup and restore ownership for ezBookkeeping, assistant state/reports, and Wealthfolio.
 - [x] 7.5 Confirm the FinOps Argo CD Application is synced and healthy independently of the existing `furfriend-finder` OutOfSync issue.
-- [ ] 7.6 Mark this deployment change complete only after live VPS evidence is captured, not from repo-local tests alone.
+- [ ] 7.7 Mark this deployment change complete only after live VPS evidence is captured, not from repo-local tests alone.
