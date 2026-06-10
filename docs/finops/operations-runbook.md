@@ -456,6 +456,18 @@ helm upgrade --install finops charts/finops-workspace \
   -f charts/finops-workspace/values-prod.yaml
 ```
 
+每個 Stage 啟用前先做 image pull smoke 驗證：
+
+```bash
+cd deploy/finops
+KUBECTL_CONTEXT=furfriend-vps \
+FINOPS_NAMESPACE=finops \
+bash scripts/verify-finops-images.sh 0.1.0
+```
+
+若驗證失敗，先修正 GHCR 映像、secret 或 ingress 相關設定，
+再回到下一階段。
+
 Do not enable all components at once on the VPS. Capture resource usage after each step.
 
 ## UI Verification
