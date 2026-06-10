@@ -28,8 +28,8 @@
 
 ## 3. ezBookkeeping Stage
 
-- [ ] 3.1 Sync the FinOps Argo CD Application with ezBookkeeping only into the `finops` namespace with local-path PVCs and private access on the dedicated VPS UI port.
-- [ ] 3.2 Verify Argo CD sync/health plus ezBookkeeping pod, service, ingress, probes, PVC binding, and resource usage.
+- [x] 3.1 Sync the FinOps Argo CD Application with ezBookkeeping only into the `finops` namespace with local-path PVCs and private access on the dedicated VPS UI port.
+- [x] 3.2 Verify Argo CD sync/health plus ezBookkeeping pod, service, ingress, probes, PVC binding, and resource usage.
 - [ ] 3.3 Create owner account, TWD/USD currencies, accounts, categories, import/export settings, and API token.
 - [ ] 3.4 Verify expense, income, transfer, account, category, chart, and PWA workflows.
 - [ ] 3.5 Verify ezBookkeeping backup and restore ownership before enabling Telegram writes.
@@ -64,8 +64,8 @@
 ## 7. Production Handoff
 
 - [ ] 7.1 Capture final pods, services, PVCs, ingresses, CronJobs, report artifacts, private-access checks, and resource snapshots.
-- [ ] 7.2 Verify FurFriend-Finder remains healthy after each FinOps stage and after the final rollout.
+- [x] 7.2 Verify FurFriend-Finder remains healthy after each FinOps stage and after the final rollout.
 - [ ] 7.3 Document rollback commands that disable schedules, assistant, Wealthfolio, and ezBookkeeping without deleting PVCs.
 - [ ] 7.4 Document backup and restore ownership for ezBookkeeping, assistant state/reports, and Wealthfolio.
-- [ ] 7.5 Confirm the FinOps Argo CD Application is synced and healthy independently of the existing `furfriend-finder` OutOfSync issue.
+- [x] 7.5 Confirm the FinOps Argo CD Application is synced and healthy independently of the existing `furfriend-finder` OutOfSync issue.
 - [ ] 7.6 Mark this deployment change complete only after live VPS evidence is captured, not from repo-local tests alone.
