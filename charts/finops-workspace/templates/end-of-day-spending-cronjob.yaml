@@ -2,7 +2,7 @@
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: {{ include "finops.fullname" . }}-end-of-day-spending
+  name: {{ include "finops.fullname" . }}-eod-spending
   labels:
     {{- include "finops.labels" . | nindent 4 }}
     app.kubernetes.io/component: end-of-day-spending-report
