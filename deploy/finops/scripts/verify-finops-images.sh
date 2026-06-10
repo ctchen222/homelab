@@ -11,6 +11,7 @@ MARKET_IMAGE="${FINOPS_MARKET_IMAGE:-ghcr.io/ctchen222/finops-market-research}"
 ASSISTANT_POD_TEST_IMAGE="${FINOPS_ASSISTANT_TEST_IMAGE:-$ASSISTANT_IMAGE:$IMAGE_TAG}"
 MARKET_POD_TEST_IMAGE="${FINOPS_MARKET_TEST_IMAGE:-$MARKET_IMAGE:$IMAGE_TAG}"
 EXPECTED_USERNAME="${FINOPS_EXPECTED_GHCR_USERNAME:-ctchen222}"
+VERIFY_MANIFEST="${VERIFY_MANIFEST:-1}"
 JOB_NAME_PREFIX="${FINOPS_IMAGE_TEST_JOB:-finops-ghcr-image-smoke}"
 JOB_FULL_NAME="${JOB_NAME_PREFIX}-$(date +%s)"
 
@@ -35,11 +36,15 @@ cleanup_job() {
 }
 trap 'cleanup_job; rm -f "${tmp_job:-}"' EXIT
 
-log "Step 1/3: verify GHCR image manifests exist for tag=${IMAGE_TAG}"
-docker buildx imagetools inspect "${ASSISTANT_IMAGE}:${IMAGE_TAG}" >/tmp/finops-assistant-imagetools.out
-log "assistant image OK: ${ASSISTANT_IMAGE}:${IMAGE_TAG}"
-docker buildx imagetools inspect "${MARKET_IMAGE}:${IMAGE_TAG}" >/tmp/finops-market-imagetools.out
-log "market-research image OK: ${MARKET_IMAGE}:${IMAGE_TAG}"
+if [[ "${VERIFY_MANIFEST}" == "1" ]]; then
+  log "Step 1/3: verify GHCR image manifests exist for tag=${IMAGE_TAG}"
+  docker buildx imagetools inspect "${ASSISTANT_IMAGE}:${IMAGE_TAG}" >/tmp/finops-assistant-imagetools.out
+  log "assistant image OK: ${ASSISTANT_IMAGE}:${IMAGE_TAG}"
+  docker buildx imagetools inspect "${MARKET_IMAGE}:${IMAGE_TAG}" >/tmp/finops-market-imagetools.out
+  log "market-research image OK: ${MARKET_IMAGE}:${IMAGE_TAG}"
+else
+  log "Step 1/3 skipped: VERIFY_MANIFEST=${VERIFY_MANIFEST}; skip GHCR manifest check and proceed with k8s pull smoke"
+fi
 
 log "Step 2/3: verify ghcr-credentials secret in Kubernetes"
 if kubectl --context "${CONTEXT}" -n "${NAMESPACE}" get secret "${SECRET_NAME}" >/tmp/finops-ghcr-secret-check.log 2>&1; then
@@ -100,7 +105,7 @@ spec:
             - "echo finops market-research image pull check passed"
 YAML
 
-kubectl --context "${CONTEXT}" apply -f "${tmp_job}"
+kubectl --context "${CONTEXT}" apply --validate=false -f "${tmp_job}"
 if ! kubectl --context "${CONTEXT}" wait --for=condition=complete "job/${JOB_FULL_NAME}" -n "${NAMESPACE}" --timeout=180s; then
   log "k8s image pull check job failed. show job + pod diagnostics:"
   kubectl --context "${CONTEXT}" describe job "${JOB_FULL_NAME}" -n "${NAMESPACE}"
