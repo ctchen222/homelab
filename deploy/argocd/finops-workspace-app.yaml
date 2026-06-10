@@ -6,7 +6,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/ctchen222/homelab.git
+    repoURL: git@github.com:ctchen222/homelab.git
     targetRevision: main
     path: charts/finops-workspace
     helm:
