@@ -14,8 +14,8 @@
 
 - [x] 2.1 Add an Argo CD Application manifest for `finops-workspace` pointing at `https://github.com/ctchen222/homelab.git`, revision `main`, chart path `charts/finops-workspace`, and destination namespace `finops`.
 - [x] 2.2 Add staged production values so the first Argo CD sync does not enable every FinOps component at once.
-- [ ] 2.3 Verify `ghcr.io/ctchen222/finops-assistant:0.1.0` is published and pullable from the VPS.
-- [ ] 2.4 Verify `ghcr.io/ctchen222/finops-market-research:0.1.0` is published and pullable from the VPS.
+- [ ] 2.3 Verify `ghcr.io/ctchen222/finops-assistant:0.1.0` is published and pullable from the VPS。`deploy-finops-vps-docs` blocker：`ImagePullBackOff` + `403 Forbidden`，疑似 GHCR token 權限不足（缺少 `read:packages`），見 `docs/finops/vps-image-pull-blocker-log-2026-06-10.md`。
+- [ ] 2.4 Verify `ghcr.io/ctchen222/finops-market-research:0.1.0` is published and pullable from the VPS。`deploy-finops-vps-docs` blocker 同上。
 - [x] 2.5 Create or document SOPS/owner-operated creation of the `finops` namespace and `finops-secrets` with all required keys, including `telegram-report-chat-id`.
 - [x] 2.6 Add Helm wiring for `TELEGRAM_REPORT_CHAT_ID` so scheduled reports can push to Telegram.
 - [x] 2.7 Add or document the Traefik BasicAuth middleware, Secret, or stricter equivalent before enabling finance UI ingress.
@@ -24,7 +24,7 @@
 - [x] 2.10 Verify VPS firewall/security-group exposure for UI ports and document the no-domain owner-only HTTP risk, source-IP restriction status, and future HTTPS/domain hardening path.
 - [x] 2.11 Run Helm lint and template checks for each staged production values set.
 - [x] 2.12 Add a GitHub Actions workflow that publishes `linux/amd64` FinOps assistant and market-research images to GHCR.
-- [ ] 2.13 Verify the GitHub Actions image workflow publishes a selected release tag and the VPS can pull both resulting images.
+- [ ] 2.13 Verify the GitHub Actions image workflow publishes a selected release tag and the VPS can pull both resulting images。目前卡在 GHCR token 權限 (`read:packages`) 釋放，待重建 `ghcr-credentials` 後重跑 `scripts/verify-finops-images.sh`。
 
 ## 3. ezBookkeeping Stage
 
@@ -36,7 +36,7 @@
 
 ## 4. Assistant and Finance Reports Stage
 
-- [ ] 4.1 Enable the FinOps assistant through a GitOps commit with ezBookkeeping API token, Telegram allowlist, `TELEGRAM_REPORT_CHAT_ID`, SQLite PVC, and watchlist ConfigMap.
+- [ ] 4.1 Enable the FinOps assistant through a GitHub Operations via a GitOps commit with ezBookkeeping API token, Telegram allowlist, `TELEGRAM_REPORT_CHAT_ID`, SQLite PVC, and watchlist ConfigMap.
 - [ ] 4.2 Verify `/healthz`, `/readyz`, service DNS, probes, PVC, ConfigMap, and resource usage.
 - [ ] 4.3 Configure Telegram webhook with `setWebhook` using the public HTTPS assistant URL, `secret_token`, required `allowed_updates`, and `drop_pending_updates=true` for the first production cutover.
 - [ ] 4.4 Verify Telegram webhook with `getWebhookInfo`, secret-token validation, allowlist rejection, idempotency, unknown-category review, and one non-production ezBookkeeping write.
