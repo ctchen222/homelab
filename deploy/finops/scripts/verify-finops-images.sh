@@ -51,16 +51,26 @@ if kubectl --context "${CONTEXT}" -n "${NAMESPACE}" get secret "${SECRET_NAME}" 
   log "secret exists: ${NAMESPACE}/${SECRET_NAME}"
 
   raw=$(kubectl --context "${CONTEXT}" -n "${NAMESPACE}" get secret "${SECRET_NAME}" \
-    -o jsonpath='{.data..dockerconfigjson}')
-  decoded=$(printf '%s' "${raw}" | base64 --decode)
+    -o go-template='{{ index .data ".dockerconfigjson" }}')
+  if ! decoded=$(printf '%s' "${raw}" | base64 --decode); then
+    log "warning: failed to decode ghcr-credentials secret from base64"
+    decoded=""
+  fi
   log "secret decode preview: ${decoded:0:80}..."
 
-  username=$(printf '%s' "${decoded}" | python3 - <<'PY'
+  if command -v jq >/dev/null 2>&1; then
+    username=$(printf '%s' "${decoded}" | jq -r '.auths["ghcr.io"].username // empty' 2>/dev/null || true)
+  else
+    username=$(printf '%s' "${decoded}" | python3 - <<'PY'
 import sys, json
-config = json.load(sys.stdin)
-print(config.get('auths', {}).get('ghcr.io', {}).get('username', ''))
+try:
+  cfg = json.load(sys.stdin)
+  print(cfg.get('auths', {}).get('ghcr.io', {}).get('username', ''))
+except Exception:
+  print('')
 PY
 )
+  fi
   if [[ -z "${username}" ]]; then
     log "warning: cannot parse ghcr.io username from secret payload"
   elif [[ "${username}" != "${EXPECTED_USERNAME}" ]]; then
