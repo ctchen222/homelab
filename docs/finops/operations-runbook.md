@@ -350,6 +350,14 @@ kubectl create secret docker-registry ghcr-credentials \
 
 `<GHCR_PAT_WITH_READ_PACKAGES>` 至少需有 `read:packages` 權限；若 PAT 會變更或重新產生，需刪除重建該 secret 並重啟 FinOps Pod。
 
+> 目前 `ImagePullBackOff` + `403 Forbidden` 大多半代表此 token 沒有 `read:packages`；確認方式（不會回傳 secret）：
+>
+> ```bash
+> gh api /users/ctchen222/packages/container/finops-assistant/versions --jq '. | length'
+> ```
+>
+> 若回 403，請用具有 `read:packages` 的 PAT 重建 `ghcr-credentials`，並確認該 PAT 在目標套件上有可讀權限。
+
 ```bash
 kubectl delete secret ghcr-credentials -n finops
 kubectl create secret docker-registry ghcr-credentials \
