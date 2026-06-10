@@ -1,0 +1,19 @@
+.env
+.env.*
+!.env.example
+node_modules/
+dist/
+coverage/
+reports/
+__pycache__/
+*.pyc
+*.log
+.gstack/
+
+.claude/
+.codex/
+/Quicken File.qfx
+/sinopac_API_credential.pfx
+/deploy/finops/.env
+/apps/finops-assistant/dist/
+/jobs/market-research/__pycache__/
