@@ -72,3 +72,12 @@ jobs:
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/${{ matrix.image }}:${{ steps.image-tag.outputs.tag }}
           cache-from: type=gha,scope=${{ matrix.image }}
           cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+
+      - name: Verify published image tag exists
+        shell: bash
+        run: |
+          image_ref="${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/${{ matrix.image }}:${{ steps.image-tag.outputs.tag }}"
+          docker buildx imagetools inspect "${image_ref}" >/tmp/imagetools.out
+          echo "Verified: ${image_ref}"
+          echo "--------------------------------------------------"
+          cat /tmp/imagetools.out
