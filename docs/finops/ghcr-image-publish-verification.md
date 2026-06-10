@@ -22,8 +22,16 @@ docker buildx imagetools inspect ghcr.io/<owner>/<image>:<tag>
 ## 3) VPS 取像前置檢查
 
 - 確認 `ghcr-credentials` Secret 存在
+- 確認 secret 使用者為 `ctchen222`
 - 確認 token 有 `read:packages` scope
 - 確認 token 權限帳號對 `ctchen222` 套件有可讀取權限
+
+```bash
+kubectl --context=furfriend-vps -n finops get secret ghcr-credentials \
+  -o jsonpath='{.data..dockerconfigjson}' | base64 --decode | jq .
+```
+
+如果 secret 還在但 401 重複，請重建 secret 並重啟 pod（參考 `operations-runbook.md`）後再驗證。
 
 ## 4) VPS 上的實務驗證
 
