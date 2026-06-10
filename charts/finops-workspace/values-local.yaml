@@ -1,0 +1,27 @@
+global:
+  createNamespace: false
+  createDevSecret: true
+  privateAccess:
+    enabled: false
+
+ezbookkeeping:
+  ingress:
+    enabled: true
+    host: ezbookkeeping.finops.localhost
+
+assistant:
+  ingress:
+    enabled: true
+    host: finops-assistant.finops.localhost
+
+wealthfolio:
+  authRequired: false
+  corsAllowOrigins: http://localhost:8088
+  ingress:
+    enabled: true
+    host: wealthfolio.finops.localhost
+
+marketResearch:
+  image:
+    repository: finops-market-research
+    tag: local

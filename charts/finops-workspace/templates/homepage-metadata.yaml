@@ -1,0 +1,23 @@
+{{- if .Values.homepage.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "finops.fullname" . }}-homepage-metadata
+  labels:
+    {{- include "finops.labels" . | nindent 4 }}
+    app.kubernetes.io/component: homepage-metadata
+data:
+  services.yaml: |
+    services:
+      {{- range .Values.homepage.services }}
+      - id: {{ .id | quote }}
+        name: {{ .name | quote }}
+        namespace: {{ $.Values.global.namespace | quote }}
+        url: {{ .url | quote }}
+        healthPath: {{ .healthPath | quote }}
+        sensitivity: {{ .sensitivity | quote }}
+        status: {{ .status | quote }}
+        docs: {{ .docs | quote }}
+      {{- end }}
+{{- end }}
+

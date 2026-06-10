@@ -1,0 +1,22 @@
+# Stage 1: ezBookkeeping only.
+# Pre-requisites before syncing:
+#   1. Apply deploy/traefik/helmchartconfig-traefik.yaml on VPS (adds ports 8080/8081)
+#   2. kubectl create secret docker-registry ghcr-credentials ... -n finops
+#   3. kubectl create secret generic finops-secrets ... -n finops (see design.md Decision 5)
+#   4. kubectl create secret generic finops-basic-auth --from-literal=users='...' -n finops
+#   5. UFW: ufw allow 8080/tcp && ufw allow 8081/tcp (or restrict to owner IP)
+# Verify: http://178.156.151.78:8080 serves ezBookkeeping behind BasicAuth.
+assistant:
+  enabled: false
+
+dailyReport:
+  enabled: false
+
+endOfDaySpendingReport:
+  enabled: false
+
+wealthfolio:
+  enabled: false
+
+marketResearch:
+  enabled: false

@@ -1,0 +1,11 @@
+# Stage 5: Full deployment — all components enabled.
+# Pre-requisites beyond stage 4:
+#   - finops-secrets includes: wealthfolio-secret-key, wealthfolio-auth-password-hash
+#   - finops-basic-auth secret covers the finopswf Traefik entrypoint
+#   - Wealthfolio CORS origin matches http://178.156.151.78:8081 (set in values-prod.yaml)
+# Verify after sync:
+#   - http://178.156.151.78:8081 serves Wealthfolio behind BasicAuth
+#   - Wealthfolio auth, portfolio data, and SQLite PVC all verified
+#   - kubectl top nodes remains below 80% after wealthfolio pod is Running
+#   - Disable wealthfolio here and roll back if resource gates fail
+# No overrides — all components enabled via values.yaml defaults + values-prod.yaml.

@@ -1,0 +1,22 @@
+# Stage 2: ezBookkeeping + Assistant (Telegram webhook live, report schedules still off).
+# Pre-requisites beyond stage 1:
+#   - finops-secrets must include: telegram-bot-token, telegram-webhook-secret,
+#     telegram-allowed-user-ids, telegram-report-chat-id, ezbookkeeping-api-token,
+#     assistant-internal-token
+#   - cert-manager will issue TLS for finops-assistant.178-156-151-78.sslip.io automatically
+# Verify after sync:
+#   - kubectl exec ... curl /healthz and /readyz
+#   - setWebhook with drop_pending_updates=true
+#   - getWebhookInfo confirms registration
+#   - Send one test message; verify allowlist rejection for unknown users
+dailyReport:
+  enabled: false
+
+endOfDaySpendingReport:
+  enabled: false
+
+wealthfolio:
+  enabled: false
+
+marketResearch:
+  enabled: false

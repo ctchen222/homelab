@@ -1,0 +1,43 @@
+{{- $mode := .Values.portfolioSync.mode | default "disabled" -}}
+{{- $enabled := .Values.portfolioSync.enabled | default false -}}
+{{- $wealthfolioReady := .Values.portfolioSync.baseline.wealthfolioReady | default false -}}
+{{- $fixtureValidated := .Values.portfolioSync.gates.fixtureValidated | default false -}}
+{{- $dryRunValidated := .Values.portfolioSync.gates.dryRunValidated | default false -}}
+{{- $redactedPreviewApproved := .Values.portfolioSync.gates.redactedPreviewApproved | default false -}}
+{{- $ownerApproved := .Values.portfolioSync.gates.ownerApproved | default false -}}
+{{- $scheduledEnablementApproved := .Values.portfolioSync.gates.scheduledEnablementApproved | default false -}}
+{{- $realDataJobsEnabled := or
+  (.Values.portfolioSync.jobs.sinoPacLiveSync.enabled | default false)
+  (.Values.portfolioSync.jobs.importCommit.enabled | default false)
+  (.Values.portfolioSync.jobs.wealthfolioExport.enabled | default false)
+-}}
+{{- $allowedModes := list "disabled" "fixture" "dry-run" "live" -}}
+{{- if not (has $mode $allowedModes) -}}
+{{- fail (printf "portfolioSync.mode %q must be one of disabled, fixture, dry-run, live" $mode) -}}
+{{- end -}}
+{{- if and $enabled (not (or (eq $mode "disabled") (eq $mode "fixture") $wealthfolioReady)) -}}
+{{- fail "portfolioSync may only run in disabled or fixture mode until portfolioSync.baseline.wealthfolioReady=true" -}}
+{{- end -}}
+{{- if and $enabled (not (or (eq $mode "disabled") (eq $mode "fixture"))) (not .Values.wealthfolio.enabled) -}}
+{{- fail "portfolioSync non-fixture modes require wealthfolio.enabled=true" -}}
+{{- end -}}
+{{- if and $realDataJobsEnabled (not (and $fixtureValidated $dryRunValidated $redactedPreviewApproved $ownerApproved $scheduledEnablementApproved)) -}}
+{{- fail "portfolioSync real-data jobs require fixture validation, dry-run validation, redacted preview approval, owner approval, and scheduled enablement approval gates." -}}
+{{- end }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "finops.fullname" . }}-portfolio-sync-gate
+  labels:
+    {{- include "finops.labels" . | nindent 4 }}
+    app.kubernetes.io/component: portfolio-sync
+data:
+  enabled: {{ $enabled | quote }}
+  mode: {{ $mode | quote }}
+  wealthfolioReady: {{ $wealthfolioReady | quote }}
+  maxModeBeforeWealthfolioReady: "fixture"
+  fixtureValidated: {{ $fixtureValidated | quote }}
+  dryRunValidated: {{ $dryRunValidated | quote }}
+  redactedPreviewApproved: {{ $redactedPreviewApproved | quote }}
+  ownerApproved: {{ $ownerApproved | quote }}
+  scheduledEnablementApproved: {{ $scheduledEnablementApproved | quote }}

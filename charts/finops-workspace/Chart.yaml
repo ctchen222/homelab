@@ -1,0 +1,7 @@
+apiVersion: v2
+name: finops-workspace
+description: Lightweight FinOps workspace for ezBookkeeping, assistant, Wealthfolio, and market reports.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+

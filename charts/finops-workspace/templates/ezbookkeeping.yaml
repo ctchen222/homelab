@@ -1,0 +1,171 @@
+{{- if .Values.ezbookkeeping.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "finops.fullname" . }}-ezbookkeeping-data
+  labels:
+    {{- include "finops.labels" . | nindent 4 }}
+    app.kubernetes.io/component: ezbookkeeping
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: {{ .Values.global.storageClassName | quote }}
+  resources:
+    requests:
+      storage: {{ .Values.ezbookkeeping.persistence.dataSize | quote }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "finops.fullname" . }}-ezbookkeeping-storage
+  labels:
+    {{- include "finops.labels" . | nindent 4 }}
+    app.kubernetes.io/component: ezbookkeeping
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: {{ .Values.global.storageClassName | quote }}
+  resources:
+    requests:
+      storage: {{ .Values.ezbookkeeping.persistence.storageSize | quote }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "finops.fullname" . }}-ezbookkeeping
+  labels:
+    {{- include "finops.labels" . | nindent 4 }}
+    app.kubernetes.io/component: ezbookkeeping
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "finops.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: ezbookkeeping
+  template:
+    metadata:
+      labels:
+        {{- include "finops.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: ezbookkeeping
+    spec:
+      securityContext:
+        fsGroup: 1000
+      containers:
+        - name: ezbookkeeping
+          image: "{{ .Values.ezbookkeeping.image.repository }}:{{ .Values.ezbookkeeping.image.tag }}"
+          imagePullPolicy: {{ .Values.ezbookkeeping.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: TZ
+              value: {{ .Values.global.timezone | quote }}
+            - name: EBK_DATABASE_TYPE
+              value: sqlite3
+            - name: EBK_DATABASE_DB_PATH
+              value: /ezbookkeeping/data/ezbookkeeping.db
+            - name: EBK_STORAGE_LOCAL_FILESYSTEM_PATH
+              value: /ezbookkeeping/storage/
+            - name: EBK_SECURITY_ENABLE_API_TOKEN
+              value: "true"
+            - name: EBK_SECURITY_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "finops.secretName" . }}
+                  key: ezbookkeeping-secret-key
+            - name: EBK_SERVER_DOMAIN
+              value: {{ .Values.ezbookkeeping.serverDomain | quote }}
+            - name: EBK_SERVER_ROOT_URL
+              value: {{ .Values.ezbookkeeping.serverRootUrl | quote }}
+          volumeMounts:
+            - name: data
+              mountPath: /ezbookkeeping/data
+            - name: storage
+              mountPath: /ezbookkeeping/storage
+          resources:
+            {{- toYaml .Values.ezbookkeeping.resources | nindent 12 }}
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 30
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ include "finops.fullname" . }}-ezbookkeeping-data
+        - name: storage
+          persistentVolumeClaim:
+            claimName: {{ include "finops.fullname" . }}-ezbookkeeping-storage
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "finops.fullname" . }}-ezbookkeeping
+  labels:
+    {{- include "finops.labels" . | nindent 4 }}
+    app.kubernetes.io/component: ezbookkeeping
+spec:
+  selector:
+    {{- include "finops.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: ezbookkeeping
+  ports:
+    - name: http
+      port: {{ .Values.ezbookkeeping.service.port }}
+      targetPort: http
+---
+{{- if .Values.ezbookkeeping.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "finops.fullname" . }}-ezbookkeeping
+  labels:
+    {{- include "finops.labels" . | nindent 4 }}
+    app.kubernetes.io/component: ezbookkeeping
+  annotations:
+    {{- include "finops.privateAnnotations" . | nindent 4 }}
+spec:
+  ingressClassName: {{ .Values.global.ingressClassName }}
+  rules:
+    - host: {{ .Values.ezbookkeeping.ingress.host }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "finops.fullname" . }}-ezbookkeeping
+                port:
+                  name: http
+{{- end }}
+{{- if .Values.ezbookkeeping.ingressRoute.enabled }}
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: {{ include "finops.fullname" . }}-ezbookkeeping-ui
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "finops.labels" . | nindent 4 }}
+    app.kubernetes.io/component: ezbookkeeping
+spec:
+  entryPoints:
+    - {{ .Values.ezbookkeeping.ingressRoute.entryPoint }}
+  routes:
+    - match: PathPrefix(`/`)
+      kind: Rule
+      {{- if .Values.global.privateAccess.enabled }}
+      middlewares:
+        - name: finops-private-access
+          namespace: {{ .Values.global.namespace }}
+      {{- end }}
+      services:
+        - name: {{ include "finops.fullname" . }}-ezbookkeeping
+          port: {{ .Values.ezbookkeeping.service.port }}
+{{- end }}
+{{- end }}
+

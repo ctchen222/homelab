@@ -1,0 +1,211 @@
+{{- if and .Values.assistant.enabled .Values.portfolioSync.enabled .Values.portfolioSync.jobs.fixtureSync.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "finops.fullname" . }}-portfolio-fixture-sync
+  labels:
+    {{- include "finops.labels" . | nindent 4 }}
+    app.kubernetes.io/component: portfolio-sync
+spec:
+  schedule: {{ .Values.portfolioSync.jobs.fixtureSync.schedule | quote }}
+  timeZone: {{ .Values.portfolioSync.jobs.fixtureSync.timeZone | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: fixture-sync
+              image: "{{ .Values.portfolioSync.jobs.fixtureSync.image.repository }}:{{ .Values.portfolioSync.jobs.fixtureSync.image.tag }}"
+              imagePullPolicy: {{ .Values.portfolioSync.jobs.fixtureSync.image.pullPolicy }}
+              command: ["/bin/sh", "-ec"]
+              args:
+                - >
+                  curl -fsS -X POST
+                  -H "Content-Type: application/json"
+                  -H "X-Internal-Token: ${ASSISTANT_INTERNAL_TOKEN}"
+                  -d '{{ toJson .Values.portfolioSync.fixture }}'
+                  "http://{{ include "finops.fullname" . }}-assistant:{{ .Values.assistant.service.port }}/internal/portfolio/sync/fixture"
+              env:
+                - name: ASSISTANT_INTERNAL_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "finops.secretName" . }}
+                      key: assistant-internal-token
+              resources:
+                {{- toYaml .Values.portfolioSync.jobs.fixtureSync.resources | nindent 16 }}
+---
+{{- end }}
+{{- if and .Values.assistant.enabled .Values.portfolioSync.enabled .Values.portfolioSync.jobs.importCommit.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "finops.fullname" . }}-portfolio-import-commit
+  labels:
+    {{- include "finops.labels" . | nindent 4 }}
+    app.kubernetes.io/component: portfolio-sync
+spec:
+  schedule: {{ .Values.portfolioSync.jobs.importCommit.schedule | quote }}
+  timeZone: {{ .Values.portfolioSync.jobs.importCommit.timeZone | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: import-commit
+              image: "{{ .Values.portfolioSync.jobs.importCommit.image.repository }}:{{ .Values.portfolioSync.jobs.importCommit.image.tag }}"
+              imagePullPolicy: {{ .Values.portfolioSync.jobs.importCommit.image.pullPolicy }}
+              command: ["/bin/sh", "-ec"]
+              args:
+                - >
+                  curl -fsS -X POST
+                  -H "Content-Type: application/json"
+                  -H "X-Internal-Token: ${ASSISTANT_INTERNAL_TOKEN}"
+                  -d '{{ toJson (merge (dict "ownerApproved" true) .Values.portfolioSync.import) }}'
+                  "http://{{ include "finops.fullname" . }}-assistant:{{ .Values.assistant.service.port }}/internal/portfolio/import/commit"
+              env:
+                - name: ASSISTANT_INTERNAL_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "finops.secretName" . }}
+                      key: assistant-internal-token
+                - name: SINOPAC_API_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "finops.secretName" . }}
+                      key: {{ .Values.portfolioSync.secretKeys.sinopacApiKey }}
+                      optional: true
+                - name: SINOPAC_SECRET_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "finops.secretName" . }}
+                      key: {{ .Values.portfolioSync.secretKeys.sinopacSecretKey }}
+                      optional: true
+                - name: SINOPAC_CA_PATH
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "finops.secretName" . }}
+                      key: {{ .Values.portfolioSync.secretKeys.sinopacCaPath }}
+                      optional: true
+                - name: SINOPAC_CA_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "finops.secretName" . }}
+                      key: {{ .Values.portfolioSync.secretKeys.sinopacCaPassword }}
+                      optional: true
+                - name: FIRSTRADE_PLAID_CLIENT_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "finops.secretName" . }}
+                      key: {{ .Values.portfolioSync.secretKeys.firstradePlaidClientId }}
+                      optional: true
+                - name: FIRSTRADE_PLAID_SECRET
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "finops.secretName" . }}
+                      key: {{ .Values.portfolioSync.secretKeys.firstradePlaidSecret }}
+                      optional: true
+                - name: FIRSTRADE_ACCESS_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "finops.secretName" . }}
+                      key: {{ .Values.portfolioSync.secretKeys.firstradeAccessToken }}
+                      optional: true
+              resources:
+                {{- toYaml .Values.portfolioSync.jobs.importCommit.resources | nindent 16 }}
+---
+{{- end }}
+{{- if and .Values.assistant.enabled .Values.portfolioSync.enabled .Values.portfolioSync.jobs.sinoPacLiveSync.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "finops.fullname" . }}-portfolio-sinopac-live-sync
+  labels:
+    {{- include "finops.labels" . | nindent 4 }}
+    app.kubernetes.io/component: portfolio-sync
+spec:
+  schedule: {{ .Values.portfolioSync.jobs.sinoPacLiveSync.schedule | quote }}
+  timeZone: {{ .Values.portfolioSync.jobs.sinoPacLiveSync.timeZone | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: sinopac-live-sync
+              image: "{{ .Values.portfolioSync.jobs.sinoPacLiveSync.image.repository }}:{{ .Values.portfolioSync.jobs.sinoPacLiveSync.image.tag }}"
+              imagePullPolicy: {{ .Values.portfolioSync.jobs.sinoPacLiveSync.image.pullPolicy }}
+              command: ["/bin/sh", "-ec"]
+              args:
+                - >
+                  curl -fsS -X POST
+                  -H "Content-Type: application/json"
+                  -H "X-Internal-Token: ${ASSISTANT_INTERNAL_TOKEN}"
+                  -d '{{ toJson .Values.portfolioSync.sinoPacLive }}'
+                  "http://{{ include "finops.fullname" . }}-assistant:{{ .Values.assistant.service.port }}/internal/portfolio/sync/live"
+              env:
+                - name: ASSISTANT_INTERNAL_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "finops.secretName" . }}
+                      key: assistant-internal-token
+              resources:
+                {{- toYaml .Values.portfolioSync.jobs.sinoPacLiveSync.resources | nindent 16 }}
+---
+{{- end }}
+{{- if and .Values.assistant.enabled .Values.portfolioSync.enabled .Values.portfolioSync.jobs.wealthfolioExport.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "finops.fullname" . }}-wealthfolio-export
+  labels:
+    {{- include "finops.labels" . | nindent 4 }}
+    app.kubernetes.io/component: wealthfolio
+spec:
+  schedule: {{ .Values.portfolioSync.jobs.wealthfolioExport.schedule | quote }}
+  timeZone: {{ .Values.portfolioSync.jobs.wealthfolioExport.timeZone | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: wealthfolio-export
+              image: "{{ .Values.portfolioSync.jobs.wealthfolioExport.image.repository }}:{{ .Values.portfolioSync.jobs.wealthfolioExport.image.tag }}"
+              imagePullPolicy: {{ .Values.portfolioSync.jobs.wealthfolioExport.image.pullPolicy }}
+              command: ["/bin/sh", "-ec"]
+              args:
+                - >
+                  curl -fsS -X POST
+                  -H "Content-Type: application/json"
+                  -H "X-Internal-Token: ${ASSISTANT_INTERNAL_TOKEN}"
+                  -d '{{ toJson .Values.portfolioSync.export }}'
+                  "http://{{ include "finops.fullname" . }}-assistant:{{ .Values.assistant.service.port }}/internal/portfolio/wealthfolio/export"
+              env:
+                - name: ASSISTANT_INTERNAL_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "finops.secretName" . }}
+                      key: assistant-internal-token
+                - name: WEALTHFOLIO_IMPORT_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "finops.secretName" . }}
+                      key: {{ .Values.portfolioSync.secretKeys.wealthfolioImportToken }}
+                      optional: true
+              resources:
+                {{- toYaml .Values.portfolioSync.jobs.wealthfolioExport.resources | nindent 16 }}
+{{- end }}

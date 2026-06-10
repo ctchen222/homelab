@@ -1,0 +1,25 @@
+apiVersion: helm.cattle.io/v1
+kind: HelmChartConfig
+metadata:
+  name: traefik
+  namespace: kube-system
+spec:
+  valuesContent: |-
+    # FinOps UI entrypoints.
+    # finopsez (container :8085) → external LoadBalancer :8080 → ezBookkeeping
+    # finopswf (container :8086) → external LoadBalancer :8081 → Wealthfolio
+    # Container ports avoid conflicts with existing entrypoints:
+    #   :8080 traefik dashboard, :8000 web, :8443 websecure, :9100 metrics
+    ports:
+      finopsez:
+        port: 8085
+        expose:
+          default: true
+        exposedPort: 8080
+        protocol: TCP
+      finopswf:
+        port: 8086
+        expose:
+          default: true
+        exposedPort: 8081
+        protocol: TCP

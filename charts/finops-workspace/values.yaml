@@ -1,0 +1,325 @@
+global:
+  namespace: finops
+  createNamespace: false
+  createDevSecret: false
+  existingSecretName: finops-secrets
+  ingressClassName: traefik
+  storageClassName: local-path
+  timezone: Asia/Taipei
+  imagePullSecrets: []
+  basicAuthSecretName: finops-basic-auth
+  privateAccess:
+    enabled: true
+    annotations:
+      traefik.ingress.kubernetes.io/router.middlewares: finops-private-access@kubernetescrd
+
+ezbookkeeping:
+  enabled: true
+  image:
+    repository: mayswind/ezbookkeeping
+    tag: latest
+    pullPolicy: IfNotPresent
+  service:
+    port: 8080
+  serverDomain: ezbookkeeping.finops.internal
+  serverRootUrl: "https://ezbookkeeping.finops.internal/"
+  ingress:
+    enabled: false
+    host: ezbookkeeping.finops.internal
+  ingressRoute:
+    enabled: false
+    entryPoint: finopsez
+  persistence:
+    dataSize: 2Gi
+    storageSize: 1Gi
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+
+assistant:
+  enabled: true
+  image:
+    repository: finops-assistant
+    tag: local
+    pullPolicy: IfNotPresent
+  service:
+    port: 8090
+  ingress:
+    enabled: false
+    host: finops-assistant.finops.internal
+  webhookIngress:
+    enabled: false
+    host: finops-assistant.178-156-151-78.sslip.io
+  telegramMode: webhook
+  persistence:
+    size: 512Mi
+  ezBookkeepingAccountIds: "{}"
+  ezBookkeepingCategoryIds: "{}"
+  llmEnabled: false
+  llmSummaryEndpoint: ""
+  resources:
+    requests:
+      cpu: 25m
+      memory: 64Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+
+dailyReport:
+  enabled: true
+  schedule: "0 8 * * *"
+  timeZone: Asia/Taipei
+  image:
+    repository: curlimages/curl
+    tag: "8.7.1"
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 50m
+      memory: 64Mi
+
+endOfDaySpendingReport:
+  enabled: true
+  schedule: "30 22 * * *"
+  timeZone: Asia/Taipei
+  image:
+    repository: curlimages/curl
+    tag: "8.7.1"
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 50m
+      memory: 64Mi
+
+wealthfolio:
+  enabled: true
+  image:
+    repository: wealthfolio/wealthfolio
+    tag: latest
+    pullPolicy: IfNotPresent
+  service:
+    port: 8088
+  ingress:
+    enabled: false
+    host: wealthfolio.finops.internal
+  ingressRoute:
+    enabled: false
+    entryPoint: finopswf
+  authRequired: true
+  corsAllowOrigins: https://wealthfolio.finops.internal
+  persistence:
+    size: 2Gi
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+portfolioSync:
+  enabled: false
+  mode: disabled
+  baseline:
+    wealthfolioReady: false
+  persistence:
+    enabled: true
+    size: 1Gi
+  retention:
+    snapshotDays: 30
+    exportDays: 90
+    rawImportDays: 90
+  gates:
+    fixtureValidated: false
+    dryRunValidated: false
+    redactedPreviewApproved: false
+    ownerApproved: false
+    scheduledEnablementApproved: false
+  fixture:
+    brokerId: fixture
+    accountAlias: fixture-main
+    adapterId: fixture-broker
+    scenario: complete
+  sinoPacLive:
+    brokerId: sinopac
+    accountAlias: sinopac-main
+  import:
+    brokerId: manual
+    accountAlias: manual-main
+    sourceType: manual-csv
+    filePath: /imports/manual.csv
+    retainRawImport: false
+  export:
+    target: wealthfolio-local
+    format: json
+    includePartialOrStale: false
+  secretKeys:
+    accountIdentitySalt: portfolio-account-identity-salt
+    sinopacApiKey: sinopac-api-key
+    sinopacSecretKey: sinopac-secret-key
+    sinopacCaPath: sinopac-ca-path
+    sinopacCaPassword: sinopac-ca-password
+    sinopacCaPfx: sinopac-ca-pfx
+    sinopacPersonId: sinopac-person-id
+    firstradePlaidClientId: firstrade-plaid-client-id
+    firstradePlaidSecret: firstrade-plaid-secret
+    firstradeAccessToken: firstrade-access-token
+    wealthfolioImportToken: wealthfolio-import-token
+  jobs:
+    fixtureSync:
+      enabled: false
+      schedule: "0 7 * * 1-5"
+      timeZone: Asia/Taipei
+      image:
+        repository: curlimages/curl
+        tag: "8.7.1"
+        pullPolicy: IfNotPresent
+      resources:
+        requests:
+          cpu: 10m
+          memory: 32Mi
+        limits:
+          cpu: 50m
+          memory: 64Mi
+    sinoPacLiveSync:
+      enabled: false
+      schedule: "10,40 9-13 * * 1-5"
+      timeZone: Asia/Taipei
+      image:
+        repository: curlimages/curl
+        tag: "8.7.1"
+        pullPolicy: IfNotPresent
+      resources:
+        requests:
+          cpu: 10m
+          memory: 32Mi
+        limits:
+          cpu: 50m
+          memory: 64Mi
+    importCommit:
+      enabled: false
+      schedule: "30 7 * * 1-5"
+      timeZone: Asia/Taipei
+      image:
+        repository: curlimages/curl
+        tag: "8.7.1"
+        pullPolicy: IfNotPresent
+      resources:
+        requests:
+          cpu: 10m
+          memory: 32Mi
+        limits:
+          cpu: 50m
+          memory: 64Mi
+    wealthfolioExport:
+      enabled: false
+      schedule: "15,45 9-13 * * 1-5"
+      timeZone: Asia/Taipei
+      image:
+        repository: curlimages/curl
+        tag: "8.7.1"
+        pullPolicy: IfNotPresent
+      resources:
+        requests:
+          cpu: 10m
+          memory: 32Mi
+        limits:
+          cpu: 50m
+          memory: 64Mi
+
+marketResearch:
+  enabled: true
+  schedule: "15 9 * * 1-5"
+  timeZone: America/New_York
+  image:
+    repository: finops-market-research
+    tag: local
+    pullPolicy: IfNotPresent
+  outputPath: /reports/market-report.json
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+watchlist:
+  timezone: Asia/Taipei
+  report:
+    marketOpenTimezone: America/New_York
+    sendBeforeMarketOpenMinutes: 15
+    riskDisclosure: Research commentary only. No broker execution and no guaranteed outcome.
+  symbols:
+    - market: TWSE
+      ticker: "0050"
+      displayName: Yuanta Taiwan 50 ETF
+      currency: TWD
+      dataSource: twse-openapi
+      providerSymbol: "0050"
+    - market: TWSE
+      ticker: "2330"
+      displayName: TSMC
+      currency: TWD
+      dataSource: twse-openapi
+      providerSymbol: "2330"
+    - market: NASDAQ
+      ticker: QQQ
+      displayName: Invesco QQQ Trust
+      currency: USD
+      dataSource: openbb-yfinance
+      providerSymbol: QQQ
+    - market: NYSEARCA
+      ticker: VTI
+      displayName: Vanguard Total Stock Market ETF
+      currency: USD
+      dataSource: openbb-yfinance
+      providerSymbol: VTI
+    - market: CRYPTO
+      ticker: BTC-USD
+      displayName: Bitcoin
+      currency: USD
+      dataSource: openbb-yfinance
+      providerSymbol: BTC-USD
+
+homepage:
+  enabled: true
+  services:
+    - id: ezbookkeeping
+      name: ezBookkeeping
+      url: https://ezbookkeeping.finops.internal
+      healthPath: /
+      sensitivity: personal-finance
+      status: planned
+      docs: docs/finops/operations-runbook.md
+    - id: finops-assistant
+      name: FinOps Assistant
+      url: https://finops-assistant.finops.internal
+      healthPath: /healthz
+      sensitivity: personal-finance
+      status: planned
+      docs: docs/finops/operations-runbook.md
+    - id: wealthfolio
+      name: Wealthfolio
+      url: https://wealthfolio.finops.internal
+      healthPath: /
+      sensitivity: personal-portfolio
+      status: planned
+      docs: docs/finops/operations-runbook.md
+    - id: finops-market-research
+      name: FinOps Market Research
+      url: ""
+      healthPath: ""
+      sensitivity: investment-research
+      status: planned
+      docs: docs/finops/operations-runbook.md

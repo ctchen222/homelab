@@ -1,0 +1,297 @@
+{{- if .Values.assistant.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "finops.fullname" . }}-assistant
+  labels:
+    {{- include "finops.labels" . | nindent 4 }}
+    app.kubernetes.io/component: assistant
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: {{ .Values.global.storageClassName | quote }}
+  resources:
+    requests:
+      storage: {{ .Values.assistant.persistence.size | quote }}
+{{- if .Values.portfolioSync.persistence.enabled }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "finops.fullname" . }}-portfolio
+  labels:
+    {{- include "finops.labels" . | nindent 4 }}
+    app.kubernetes.io/component: portfolio-sync
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: {{ .Values.global.storageClassName | quote }}
+  resources:
+    requests:
+      storage: {{ .Values.portfolioSync.persistence.size | quote }}
+{{- end }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "finops.fullname" . }}-assistant
+  labels:
+    {{- include "finops.labels" . | nindent 4 }}
+    app.kubernetes.io/component: assistant
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "finops.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: assistant
+  template:
+    metadata:
+      labels:
+        {{- include "finops.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: assistant
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: assistant
+          image: "{{ .Values.assistant.image.repository }}:{{ .Values.assistant.image.tag }}"
+          imagePullPolicy: {{ .Values.assistant.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8090
+          env:
+            - name: NODE_ENV
+              value: production
+            - name: PORT
+              value: "8090"
+            - name: TZ
+              value: {{ .Values.global.timezone | quote }}
+            - name: ASSISTANT_DB_PATH
+              value: /data/assistant.sqlite
+            - name: PORTFOLIO_DB_PATH
+              value: /data/portfolio/portfolio.sqlite
+            - name: PORTFOLIO_EXPORT_DIR
+              value: /data/portfolio/exports
+            - name: PORTFOLIO_WRITER_LEASE_MINUTES
+              value: {{ .Values.portfolioSync.writerLeaseMinutes | default 30 | quote }}
+            - name: PORTFOLIO_SNAPSHOT_RETENTION_DAYS
+              value: {{ .Values.portfolioSync.retention.snapshotDays | quote }}
+            - name: PORTFOLIO_EXPORT_RETENTION_DAYS
+              value: {{ .Values.portfolioSync.retention.exportDays | quote }}
+            - name: PORTFOLIO_RAW_IMPORT_RETENTION_DAYS
+              value: {{ .Values.portfolioSync.retention.rawImportDays | quote }}
+            - name: REPORT_DIR
+              value: /data/reports
+            - name: WATCHLIST_PATH
+              value: /config/watchlist.json
+            - name: TELEGRAM_MODE
+              value: {{ .Values.assistant.telegramMode | quote }}
+            - name: TELEGRAM_REPORT_CHAT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "finops.secretName" . }}
+                  key: telegram-report-chat-id
+                  optional: true
+            - name: EZBOOKKEEPING_BASE_URL
+              value: "http://{{ include "finops.fullname" . }}-ezbookkeeping:{{ .Values.ezbookkeeping.service.port }}"
+            - name: EZBOOKKEEPING_ACCOUNT_IDS
+              value: {{ .Values.assistant.ezBookkeepingAccountIds | quote }}
+            - name: EZBOOKKEEPING_CATEGORY_IDS
+              value: {{ .Values.assistant.ezBookkeepingCategoryIds | quote }}
+            - name: TELEGRAM_BOT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "finops.secretName" . }}
+                  key: telegram-bot-token
+            - name: TELEGRAM_WEBHOOK_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "finops.secretName" . }}
+                  key: telegram-webhook-secret
+            - name: TELEGRAM_ALLOWED_USER_IDS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "finops.secretName" . }}
+                  key: telegram-allowed-user-ids
+            - name: EZBOOKKEEPING_API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "finops.secretName" . }}
+                  key: ezbookkeeping-api-token
+            - name: ASSISTANT_INTERNAL_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "finops.secretName" . }}
+                  key: assistant-internal-token
+            - name: PORTFOLIO_ACCOUNT_IDENTITY_SALT
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "finops.secretName" . }}
+                  key: {{ .Values.portfolioSync.secretKeys.accountIdentitySalt }}
+                  optional: true
+            - name: SINOPAC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "finops.secretName" . }}
+                  key: {{ .Values.portfolioSync.secretKeys.sinopacApiKey }}
+                  optional: true
+            - name: SINOPAC_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "finops.secretName" . }}
+                  key: {{ .Values.portfolioSync.secretKeys.sinopacSecretKey }}
+                  optional: true
+            - name: SINOPAC_CA_PATH
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "finops.secretName" . }}
+                  key: {{ .Values.portfolioSync.secretKeys.sinopacCaPath }}
+                  optional: true
+            - name: SINOPAC_CA_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "finops.secretName" . }}
+                  key: {{ .Values.portfolioSync.secretKeys.sinopacCaPassword }}
+                  optional: true
+            - name: SINOPAC_PERSON_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "finops.secretName" . }}
+                  key: {{ .Values.portfolioSync.secretKeys.sinopacPersonId }}
+                  optional: true
+            - name: SINOPAC_SHIOAJI_COMMAND
+              value: /app/scripts/sinopac_shioaji_snapshot.py
+            - name: SINOPAC_SHIOAJI_TIMEOUT_MS
+              value: "90000"
+            - name: LLM_ENABLED
+              value: {{ .Values.assistant.llmEnabled | quote }}
+            - name: LLM_SUMMARY_ENDPOINT
+              value: {{ .Values.assistant.llmSummaryEndpoint | quote }}
+            - name: LLM_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "finops.secretName" . }}
+                  key: llm-api-key
+                  optional: true
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            {{- if .Values.portfolioSync.persistence.enabled }}
+            - name: portfolio
+              mountPath: /data/portfolio
+            {{- end }}
+            - name: watchlist
+              mountPath: /config
+              readOnly: true
+            - name: sinopac-ca
+              mountPath: /run/secrets/sinopac
+              readOnly: true
+          resources:
+            {{- toYaml .Values.assistant.resources | nindent 12 }}
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 30
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ include "finops.fullname" . }}-assistant
+        {{- if .Values.portfolioSync.persistence.enabled }}
+        - name: portfolio
+          persistentVolumeClaim:
+            claimName: {{ include "finops.fullname" . }}-portfolio
+        {{- end }}
+        - name: watchlist
+          configMap:
+            name: {{ include "finops.fullname" . }}-watchlist
+        - name: sinopac-ca
+          secret:
+            secretName: {{ include "finops.secretName" . }}
+            optional: true
+            items:
+              - key: {{ .Values.portfolioSync.secretKeys.sinopacCaPfx }}
+                path: sinopac_API_credential.pfx
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "finops.fullname" . }}-assistant
+  labels:
+    {{- include "finops.labels" . | nindent 4 }}
+    app.kubernetes.io/component: assistant
+spec:
+  selector:
+    {{- include "finops.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: assistant
+  ports:
+    - name: http
+      port: {{ .Values.assistant.service.port }}
+      targetPort: http
+---
+{{- if .Values.assistant.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "finops.fullname" . }}-assistant
+  labels:
+    {{- include "finops.labels" . | nindent 4 }}
+    app.kubernetes.io/component: assistant
+  annotations:
+    {{- include "finops.privateAnnotations" . | nindent 4 }}
+spec:
+  ingressClassName: {{ .Values.global.ingressClassName }}
+  rules:
+    - host: {{ .Values.assistant.ingress.host }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "finops.fullname" . }}-assistant
+                port:
+                  name: http
+{{- end }}
+{{- if .Values.assistant.webhookIngress.enabled }}
+---
+# Public HTTPS Ingress for Telegram webhook only.
+# /internal/* is NOT included here — it stays cluster-only.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "finops.fullname" . }}-assistant-webhook
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "finops.labels" . | nindent 4 }}
+    app.kubernetes.io/component: assistant
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-production
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+spec:
+  ingressClassName: {{ .Values.global.ingressClassName }}
+  rules:
+    - host: {{ .Values.assistant.webhookIngress.host }}
+      http:
+        paths:
+          - path: /telegram/webhook
+            pathType: Exact
+            backend:
+              service:
+                name: {{ include "finops.fullname" . }}-assistant
+                port:
+                  name: http
+  tls:
+    - hosts:
+        - {{ .Values.assistant.webhookIngress.host }}
+      secretName: {{ include "finops.fullname" . }}-assistant-webhook-tls
+{{- end }}
+{{- end }}

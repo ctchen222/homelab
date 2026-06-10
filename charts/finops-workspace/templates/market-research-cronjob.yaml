@@ -1,0 +1,62 @@
+{{- if .Values.marketResearch.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "finops.fullname" . }}-market-research
+  labels:
+    {{- include "finops.labels" . | nindent 4 }}
+    app.kubernetes.io/component: market-research
+spec:
+  schedule: {{ .Values.marketResearch.schedule | quote }}
+  timeZone: {{ .Values.marketResearch.timeZone | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: market-research
+              image: "{{ .Values.marketResearch.image.repository }}:{{ .Values.marketResearch.image.tag }}"
+              imagePullPolicy: {{ .Values.marketResearch.image.pullPolicy }}
+              command:
+                - python
+                - /app/market_research.py
+                - --watchlist
+                - /config/watchlist.json
+                - --output
+                - {{ .Values.marketResearch.outputPath }}
+              env:
+                - name: TZ
+                  value: {{ .Values.global.timezone | quote }}
+                - name: MARKET_DATA_API_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "finops.secretName" . }}
+                      key: market-data-api-token
+                      optional: true
+                - name: LLM_API_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "finops.secretName" . }}
+                      key: llm-api-key
+                      optional: true
+              volumeMounts:
+                - name: watchlist
+                  mountPath: /config
+                  readOnly: true
+                - name: reports
+                  mountPath: /reports
+              resources:
+                {{- toYaml .Values.marketResearch.resources | nindent 16 }}
+          volumes:
+            - name: watchlist
+              configMap:
+                name: {{ include "finops.fullname" . }}-watchlist
+            - name: reports
+              emptyDir:
+                sizeLimit: 64Mi
+{{- end }}
+
