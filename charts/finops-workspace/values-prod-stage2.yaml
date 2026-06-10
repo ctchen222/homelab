@@ -15,6 +15,12 @@ dailyReport:
 endOfDaySpendingReport:
   enabled: false
 
+assistant:
+  enabled: true
+  webhookIngress:
+    enabled: true
+    host: finops-assistant.178-156-151-78.sslip.io
+
 wealthfolio:
   enabled: false
 
