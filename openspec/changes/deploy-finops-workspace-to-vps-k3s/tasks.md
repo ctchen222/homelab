@@ -68,4 +68,4 @@
 - [ ] 7.3 Document rollback commands that disable schedules, assistant, Wealthfolio, and ezBookkeeping without deleting PVCs.
 - [ ] 7.4 Document backup and restore ownership for ezBookkeeping, assistant state/reports, and Wealthfolio.
 - [x] 7.5 Confirm the FinOps Argo CD Application is synced and healthy independently of the existing `furfriend-finder` OutOfSync issue.
-- [ ] 7.7 Mark this deployment change complete only after live VPS evidence is captured, not from repo-local tests alone.
+- [ ] 7.6 Mark this deployment change complete only after live VPS evidence is captured, not from repo-local tests alone.
