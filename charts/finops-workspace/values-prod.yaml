@@ -43,7 +43,7 @@ assistant:
 
 wealthfolio:
   image:
-    tag: "1.4.0"
+    tag: "3.5.2"
   authRequired: true
   corsAllowOrigins: "http://178.156.151.78:8081"
   ingress:
