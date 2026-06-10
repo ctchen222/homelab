@@ -28,10 +28,16 @@ docker buildx imagetools inspect ghcr.io/<owner>/<image>:<tag>
 
 ```bash
 kubectl --context=furfriend-vps -n finops get secret ghcr-credentials \
-  -o jsonpath='{.data..dockerconfigjson}' | base64 --decode | jq .
+  -o go-template='{{ index .data ".dockerconfigjson" }}' | base64 --decode | jq .
 ```
 
-如果 secret 還在但 401 重複，請重建 secret 並重啟 pod（參考 `operations-runbook.md`）後再驗證。
+若在 k8s pull smoke 看到：
+
+- `failed to resolve reference .../manifests/0.1.0: 403 Forbidden`
+- `ErrImagePull` / `ImagePullBackOff`
+
+通常是 `ghcr-credentials` 權限不足（缺少 `read:packages`）、或 token 對目標套件沒授權。請重建 secret 後重啟
+`finops-workspace` 相關 pod 再驗證。
 
 ## 4) VPS 端 Script 檢核（推薦）
 
@@ -57,7 +63,6 @@ FINOPS_ASSISTANT_IMAGE=ghcr.io/ctchen222/finops-assistant \
 FINOPS_MARKET_IMAGE=ghcr.io/ctchen222/finops-market-research \
 bash scripts/verify-finops-images.sh 0.1.0 \
   | tee /tmp/finops-image-verify-$(date +%F-%H%M%S).log
-
 # 某些受限網路下若 GHCR manifest 無法查詢，可改用：
 VERIFY_MANIFEST=0 bash scripts/verify-finops-images.sh 0.1.0
 ```
