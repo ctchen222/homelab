@@ -45,7 +45,8 @@ log "Step 2/3: verify ghcr-credentials secret in Kubernetes"
 if kubectl --context "${CONTEXT}" -n "${NAMESPACE}" get secret "${SECRET_NAME}" >/tmp/finops-ghcr-secret-check.log 2>&1; then
   log "secret exists: ${NAMESPACE}/${SECRET_NAME}"
 
-  raw=$(kubectl --context "${CONTEXT}" -n "${NAMESPACE}" get secret "${SECRET_NAME}" \\\n    -o jsonpath='{.data..dockerconfigjson}')
+  raw=$(kubectl --context "${CONTEXT}" -n "${NAMESPACE}" get secret "${SECRET_NAME}" \
+    -o jsonpath='{.data..dockerconfigjson}')
   decoded=$(printf '%s' "${raw}" | base64 --decode)
   log "secret decode preview: ${decoded:0:80}..."
 
@@ -112,4 +113,3 @@ log "k8s image pull smoke job completed. logs:"
 kubectl --context "${CONTEXT}" logs -n "${NAMESPACE}" -l "job-name=${JOB_FULL_NAME}" --all-containers=true
 
 log "Verification complete."
-# marker: fixed-main-branch-target-test
