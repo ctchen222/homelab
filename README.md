@@ -44,19 +44,6 @@ All finance UIs and assistant endpoints sit behind a `privateAccess` Traefik mid
 
 GitHub Actions builds Docker images on changes to `apps/finops-assistant/**` or `jobs/market-research/**` and pushes them to GHCR (`ghcr.io/ctchen222/finops-assistant`, `ghcr.io/ctchen222/finops-market-research`). ArgoCD watches the same repo on `main` and auto-syncs with prune and ServerSideApply enabled — the GitOps loop is fully closed.
 
-### Progressive Rollout
-
-The FinOps Helm chart supports five incremental stages controlled by swapping the ArgoCD values file reference. This isolates blast radius on a single-node cluster where a misconfigured workload affects all other services immediately.
-
-| Stage | Values file | What gets enabled |
-| --- | --- | --- |
-| 1 | `values-prod-stage1.yaml` | ezBookkeeping only |
-| 2 | `values-prod-stage2.yaml` | + FinOps Assistant (Telegram webhook live) |
-| 3 | `values-prod-stage3.yaml` | + Daily and EOD report CronJobs |
-| 4 | `values-prod-stage4.yaml` | + Market Research CronJob |
-| 5 | `values-prod-stage5.yaml` | + Wealthfolio (full stack) |
-
-Each stage has explicit pre-requisites and verification steps documented in its values file. Node memory at or above 80% after a stage triggers rollback of the newest component before proceeding.
 
 ## Observability
 
@@ -86,7 +73,6 @@ Node baseline (captured 2026-05-22): 126m CPU (~3%), 4252Mi memory (~63%), 28 Gi
 ## Design Decisions
 
 - **SQLite over PostgreSQL**: Adding PostgreSQL would consume ~512 Mi additional RAM on an already-constrained node. ezBookkeeping, Wealthfolio, and the assistant all use SQLite on PVCs. Migration to PostgreSQL is straightforward if concurrency, backup, or reporting requirements grow.
-- **Progressive rollout**: A single-node VPS has no redundancy. Enabling one service at a time, with resource gate checks between stages, limits the blast radius of any misconfigured workload and makes rollback unambiguous.
 - **Private access boundary**: All finance UIs and assistant endpoints are wrapped by a Traefik `privateAccess` middleware before exposure. Secrets (Telegram token, ezBookkeeping API token, basic auth credentials) are injected exclusively via Kubernetes Secret — no tokens are present in the repository.
 
 ## Repo Structure
