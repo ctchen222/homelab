@@ -209,3 +209,60 @@ spec:
               resources:
                 {{- toYaml .Values.portfolioSync.jobs.wealthfolioExport.resources | nindent 16 }}
 {{- end }}
+---
+{{- if and .Values.assistant.enabled .Values.portfolioSync.enabled .Values.wealthfolio.enabled .Values.portfolioSync.jobs.wealthfolioSnapshotSync.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "finops.fullname" . }}-wf-snapshot-sync
+  labels:
+    {{- include "finops.labels" . | nindent 4 }}
+    app.kubernetes.io/component: wealthfolio
+spec:
+  schedule: {{ .Values.portfolioSync.jobs.wealthfolioSnapshotSync.schedule | quote }}
+  timeZone: {{ .Values.portfolioSync.jobs.wealthfolioSnapshotSync.timeZone | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          {{- with .Values.global.imagePullSecrets }}
+          imagePullSecrets:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          containers:
+            - name: wf-snapshot-sync
+              image: "{{ .Values.assistant.image.repository }}:{{ .Values.assistant.image.tag }}"
+              imagePullPolicy: {{ .Values.assistant.image.pullPolicy }}
+              command: ["node", "/app/scripts/wealthfolio_snapshot_sync.js"]
+              env:
+                - name: PORTFOLIO_DB_PATH
+                  value: /data/portfolio/portfolio.sqlite
+                - name: WEALTHFOLIO_DB_PATH
+                  value: /wfdata/wealthfolio.db
+                - name: WEALTHFOLIO_SYNC_BROKER_ID
+                  value: {{ .Values.portfolioSync.jobs.wealthfolioSnapshotSync.brokerId | quote }}
+                - name: WEALTHFOLIO_SYNC_ACCOUNT_ALIAS
+                  value: {{ .Values.portfolioSync.jobs.wealthfolioSnapshotSync.accountAlias | quote }}
+                - name: WEALTHFOLIO_DISPLAY_CURRENCY
+                  value: {{ .Values.portfolioSync.jobs.wealthfolioSnapshotSync.displayCurrency | quote }}
+                - name: WEALTHFOLIO_EXCHANGE_RATES
+                  value: {{ .Values.portfolioSync.jobs.wealthfolioSnapshotSync.exchangeRates | quote }}
+              volumeMounts:
+                - name: portfolio
+                  mountPath: /data/portfolio
+                - name: wfdata
+                  mountPath: /wfdata
+              resources:
+                {{- toYaml .Values.portfolioSync.jobs.wealthfolioSnapshotSync.resources | nindent 16 }}
+          volumes:
+            - name: portfolio
+              persistentVolumeClaim:
+                claimName: {{ include "finops.fullname" . }}-portfolio
+            - name: wfdata
+              persistentVolumeClaim:
+                claimName: {{ include "finops.fullname" . }}-wealthfolio
+{{- end }}

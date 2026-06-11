@@ -236,6 +236,25 @@ portfolioSync:
         limits:
           cpu: 50m
           memory: 64Mi
+    # Projects normalized portfolio snapshots into the Wealthfolio SQLite DB
+    # (Holdings Mode). Uses the assistant image (node + sqlite3 + script) and
+    # mounts both the portfolio and wealthfolio PVCs. Gated and disabled by
+    # default; enable only after a verified one-off run.
+    wealthfolioSnapshotSync:
+      enabled: false
+      schedule: "20,50 9-13 * * 1-5"
+      timeZone: Asia/Taipei
+      brokerId: sinopac
+      accountAlias: sinopac-main
+      displayCurrency: TWD
+      exchangeRates: "USD:TWD=32.1"
+      resources:
+        requests:
+          cpu: 10m
+          memory: 64Mi
+        limits:
+          cpu: 100m
+          memory: 128Mi
 
 marketResearch:
   enabled: true
