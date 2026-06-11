@@ -19,7 +19,7 @@ spec:
         #   values-prod-stage4.yaml  → + market research
         #   values-prod-stage5.yaml  → + wealthfolio (full)
         #   values-prod-stage6.yaml  → + portfolio sync schedules
-        - values-prod-stage5.yaml
+        - values-prod-stage6.yaml
   destination:
     server: https://kubernetes.default.svc
     namespace: finops
