@@ -258,6 +258,23 @@ portfolioSync:
         limits:
           cpu: 100m
           memory: 128Mi
+    # Refreshes Wealthfolio quote rows for the latest active broker holdings
+    # without mutating normalized broker snapshots.
+    marketPriceSync:
+      enabled: false
+      schedule: "25,55 9-13 * * 1-5"
+      timeZone: Asia/Taipei
+      brokers:
+        - sinopac
+      displayCurrency: TWD
+      exchangeRates: "USD:TWD=32.1"
+      resources:
+        requests:
+          cpu: 10m
+          memory: 64Mi
+        limits:
+          cpu: 100m
+          memory: 128Mi
 
 marketResearch:
   enabled: true
