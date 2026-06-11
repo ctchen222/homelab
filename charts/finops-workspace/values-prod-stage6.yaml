@@ -1,0 +1,37 @@
+# Stage 6: + portfolio sync schedules for production snapshots.
+# Pre-requisites beyond stage 5:
+#   - Confirm finops-secrets includes valid SINOPAC_* credentials and CA material
+#   - Review VPS snapshots for `sinopac-main` and `firstrade-main`
+#   - Verify the first direct Wealthfolio projection with real or sanitized data
+#   - Keep Firstrade on import-backed snapshots only; do not treat this stage as a live Firstrade connector
+# Verify after sync:
+#   - `sinopac-live-sync`, `wf-snapshot-sync`, and `wf-price-sync` CronJobs are present
+#   - One-off run of `wf-snapshot-sync` shows both `sinopac` and `firstrade` broker projections
+#   - One-off run of `wf-price-sync` updates quotes for the latest Sinopac and Firstrade holdings
+#   - Wealthfolio UI shows the latest SinoPac and Firstrade holdings without removing prior snapshots unexpectedly
+#   - Assistant and Wealthfolio pods remain healthy after the first scheduled run
+portfolioSync:
+  enabled: true
+  mode: live
+  baseline:
+    wealthfolioReady: true
+  gates:
+    fixtureValidated: true
+    dryRunValidated: true
+    redactedPreviewApproved: true
+    ownerApproved: true
+    scheduledEnablementApproved: true
+  jobs:
+    sinoPacLiveSync:
+      enabled: true
+    wealthfolioSnapshotSync:
+      enabled: true
+      brokers:
+        - sinopac
+        - firstrade
+      accountAlias: ""
+    marketPriceSync:
+      enabled: true
+      brokers:
+        - sinopac
+        - firstrade
