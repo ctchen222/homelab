@@ -158,7 +158,7 @@ spec:
   routes:
     - match: PathPrefix(`/`)
       kind: Rule
-      {{- if .Values.global.privateAccess.enabled }}
+      {{- if and .Values.global.privateAccess.enabled .Values.ezbookkeeping.ingressRoute.privateAccess }}
       middlewares:
         - name: finops-private-access
           namespace: {{ .Values.global.namespace }}
@@ -168,4 +168,3 @@ spec:
           port: {{ .Values.ezbookkeeping.service.port }}
 {{- end }}
 {{- end }}
-

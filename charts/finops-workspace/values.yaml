@@ -29,6 +29,7 @@ ezbookkeeping:
   ingressRoute:
     enabled: false
     entryPoint: finopsez
+    privateAccess: true
   persistence:
     dataSize: 2Gi
     storageSize: 1Gi
