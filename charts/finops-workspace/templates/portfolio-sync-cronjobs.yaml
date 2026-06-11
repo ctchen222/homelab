@@ -126,7 +126,7 @@ spec:
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: {{ include "finops.fullname" . }}-portfolio-sinopac-live-sync
+  name: {{ include "finops.fullname" . }}-sinopac-live-sync
   labels:
     {{- include "finops.labels" . | nindent 4 }}
     app.kubernetes.io/component: portfolio-sync
