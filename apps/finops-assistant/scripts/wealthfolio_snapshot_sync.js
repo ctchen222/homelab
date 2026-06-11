@@ -422,6 +422,7 @@ function buildWealthfolioProjection(snapshots, now = new Date(), options = {}) {
       cashBalances[displayCurrency] = decimalAdd(cashBalances[displayCurrency] || "0", converted.amount);
       cashTotal = decimalAdd(cashTotal, converted.amount);
     }
+    const netContribution = decimalAdd(totalCostBasis, cashTotal);
 
     statements.push(`
       INSERT OR REPLACE INTO holdings_snapshots (
@@ -431,8 +432,8 @@ function buildWealthfolioProjection(snapshots, now = new Date(), options = {}) {
       ) VALUES (
         ${quoteSql(snapshotId)}, ${quoteSql(accountId)}, ${quoteSql(date)},
         ${quoteSql(displayCurrency)}, ${quoteSql(jsonText(positions))},
-        ${quoteSql(jsonText(cashBalances))}, ${quoteSql(totalCostBasis)}, '0',
-        ${quoteSql(nowIso)}, '0', ${quoteSql(cashTotal)}, ${quoteSql(cashTotal)},
+        ${quoteSql(jsonText(cashBalances))}, ${quoteSql(totalCostBasis)}, ${quoteSql(netContribution)},
+        ${quoteSql(nowIso)}, ${quoteSql(netContribution)}, ${quoteSql(cashTotal)}, ${quoteSql(cashTotal)},
         'BROKER_IMPORTED'
       );
     `);

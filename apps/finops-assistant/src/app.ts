@@ -449,6 +449,21 @@ export function createRequestHandler(
         });
       }
 
+      if (request.method === "GET" && url.pathname === "/internal/portfolio/summary") {
+        if (!ensureInternalToken(request, config)) {
+          return json(response, 403, { ok: false, error: "forbidden" });
+        }
+        if (!portfolioStore) {
+          return json(response, 503, { ok: false, error: "portfolio_store_unavailable" });
+        }
+
+        const includePartialOrStale = url.searchParams.get("includePartialOrStale") === "true";
+        return json(response, 200, {
+          ok: true,
+          accounts: portfolioStore.getAccountSummaries(includePartialOrStale)
+        });
+      }
+
       if (request.method === "POST" && url.pathname === "/internal/portfolio/sync/fixture") {
         if (!ensureInternalToken(request, config)) {
           return json(response, 403, { ok: false, error: "forbidden" });

@@ -59,6 +59,19 @@ export interface PortfolioAggregateRow {
   freshnessStatus: FreshnessStatus;
 }
 
+export interface PortfolioAccountSummary {
+  brokerId: string;
+  accountAlias: string;
+  baseCurrency: string;
+  asOf: string;
+  freshnessStatus: FreshnessStatus;
+  holdingsMarketValue: string;
+  holdingsCostBasis: string;
+  unrealizedPnl: string;
+  cashBalance: string;
+  totalAssets: string;
+}
+
 export interface PortfolioStoreWriter {
   acquireWriterLock(jobName: string): string;
   releaseWriterLock(jobName: string, holder: string): void;
@@ -600,6 +613,46 @@ export class PortfolioStore {
     }
 
     return Object.values(aggregate).sort((a, b) => `${a.market}|${a.symbol}`.localeCompare(`${b.market}|${b.symbol}`));
+  }
+
+  getAccountSummaries(includePartialOrStale = false): PortfolioAccountSummary[] {
+    return this.getLatestSnapshots()
+      .flatMap((snapshot) => {
+        const freshnessStatus = this.snapshotEffectiveFreshness(snapshot);
+        if (freshnessStatus === "failed" || freshnessStatus === "unavailable") return [];
+        if (!includePartialOrStale && freshnessStatus !== "fresh") return [];
+
+        let holdingsMarketValue = "0";
+        let holdingsCostBasis = "0";
+        let unrealizedPnl = "0";
+        let cashBalance = "0";
+
+        for (const holding of snapshot.holdings) {
+          holdingsMarketValue = sumAsText(holdingsMarketValue, holding.marketValue || "0");
+          holdingsCostBasis = sumAsText(holdingsCostBasis, holding.costBasis || "0");
+          unrealizedPnl = sumAsText(unrealizedPnl, holding.unrealizedPnl || "0");
+        }
+
+        for (const cash of snapshot.cashBalances) {
+          cashBalance = sumAsText(cashBalance, cash.amount || "0");
+        }
+
+        return [
+          {
+            brokerId: snapshot.brokerId,
+            accountAlias: snapshot.account.accountAlias,
+            baseCurrency: snapshot.baseCurrency,
+            asOf: snapshot.asOf,
+            freshnessStatus,
+            holdingsMarketValue,
+            holdingsCostBasis,
+            unrealizedPnl,
+            cashBalance,
+            totalAssets: sumAsText(holdingsMarketValue, cashBalance)
+          }
+        ];
+      })
+      .sort((a, b) => `${a.brokerId}|${a.accountAlias}`.localeCompare(`${b.brokerId}|${b.accountAlias}`));
   }
 
   purgeExpiredSnapshots(retentionDays = DEFAULT_RETENTION_DAYS.snapshot): number {
