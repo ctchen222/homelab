@@ -29,6 +29,7 @@ ezbookkeeping:
   ingressRoute:
     enabled: false
     entryPoint: finopsez
+    privateAccess: true
   persistence:
     dataSize: 2Gi
     storageSize: 1Gi
@@ -99,7 +100,6 @@ endOfDaySpendingReport:
       memory: 32Mi
     limits:
       cpu: 50m
-      memory: 64Mi
 
 wealthfolio:
   enabled: true
@@ -190,7 +190,6 @@ portfolioSync:
           memory: 32Mi
         limits:
           cpu: 50m
-          memory: 64Mi
     sinoPacLiveSync:
       enabled: false
       schedule: "10,40 9-13 * * 1-5"
@@ -205,7 +204,6 @@ portfolioSync:
           memory: 32Mi
         limits:
           cpu: 50m
-          memory: 64Mi
     importCommit:
       enabled: false
       schedule: "30 7 * * 1-5"
@@ -220,7 +218,6 @@ portfolioSync:
           memory: 32Mi
         limits:
           cpu: 50m
-          memory: 64Mi
     wealthfolioExport:
       enabled: false
       schedule: "15,45 9-13 * * 1-5"
@@ -235,7 +232,6 @@ portfolioSync:
           memory: 32Mi
         limits:
           cpu: 50m
-          memory: 64Mi
     # Projects normalized portfolio snapshots into the Wealthfolio SQLite DB
     # (Holdings Mode). Uses the assistant image (node + sqlite3 + script) and
     # mounts both the portfolio and wealthfolio PVCs. Gated and disabled by
