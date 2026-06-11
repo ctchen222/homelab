@@ -35,3 +35,7 @@ portfolioSync:
       brokers:
         - sinopac
         - firstrade
+
+assistant:
+  ezBookkeepingAccountIds: '{"cash":"3825055545035849728","bank":"3825055545035849729","primary bank":"3825055545035849729","credit":"3825055545035849730","credit card":"3825055545035849730","brokerage":"3825055545035849731","brokerage usd":"3825055545035849731"}'
+  ezBookkeepingCategoryIds: '{"food":"3824917002544218140","salary":"3824917002544218129","transport":"3824917002544218153","utilities":"3824917002544218151","healthcare":"3824917002544218173","subscription":"3824917002544218165","subscriptions":"3824917002544218165","transfer":"3824917002544218182","Account Transfer":"3824917002544218182","account transfer":"3824917002544218182","bank transfer":"3824917002544218182"}'
