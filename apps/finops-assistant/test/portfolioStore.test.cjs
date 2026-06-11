@@ -181,6 +181,53 @@ test("portfolio store aggregates symbols across accounts and filters stale snaps
   assert.equal(withStale.find((row) => row.symbol === "2330").freshnessStatus, "stale");
 });
 
+test("portfolio store builds account summaries with cash, holdings, and pnl split", (t) => {
+  const temp = createTempStore();
+  t.after(() => temp.cleanup());
+
+  temp.store.persistSnapshot(
+    snapshot({
+      syncRunId: "sync-summary-fresh",
+      brokerId: "sinopac",
+      accountAlias: "sinopac-main",
+      baseCurrency: "TWD",
+      holdings: [holding("sinopac-main", { brokerId: "sinopac", market: "TWSE", symbol: "2330", currency: "TWD", marketValue: "189000", costBasis: "150000", unrealizedPnl: "39000" })],
+      cashBalances: [cash("sinopac-main", { brokerId: "sinopac", currency: "TWD", amount: "300000", balanceType: "available" })]
+    })
+  );
+  temp.store.persistSnapshot(
+    snapshot({
+      syncRunId: "sync-summary-stale",
+      brokerId: "sinopac",
+      accountAlias: "sinopac-stale",
+      baseCurrency: "TWD",
+      asOf: minutesAgoIso(3 * 24 * 60),
+      sourceTimestamp: minutesAgoIso(3 * 24 * 60),
+      holdings: [holding("sinopac-stale", { brokerId: "sinopac", market: "TWSE", symbol: "0050", currency: "TWD", marketValue: "100000", costBasis: "90000", unrealizedPnl: "10000", asOf: minutesAgoIso(3 * 24 * 60) })],
+      cashBalances: [cash("sinopac-stale", { brokerId: "sinopac", currency: "TWD", amount: "20000", asOf: minutesAgoIso(3 * 24 * 60) })]
+    })
+  );
+
+  const freshOnly = temp.store.getAccountSummaries(false);
+  assert.equal(freshOnly.length, 1);
+  assert.deepEqual(freshOnly[0], {
+    brokerId: "sinopac",
+    accountAlias: "sinopac-main",
+    baseCurrency: "TWD",
+    asOf: freshOnly[0].asOf,
+    freshnessStatus: "fresh",
+    holdingsMarketValue: "189000.00000000",
+    holdingsCostBasis: "150000.00000000",
+    unrealizedPnl: "39000.00000000",
+    cashBalance: "300000.00000000",
+    totalAssets: "489000.00000000"
+  });
+
+  const withStale = temp.store.getAccountSummaries(true);
+  assert.equal(withStale.length, 2);
+  assert.equal(withStale.find((row) => row.accountAlias === "sinopac-stale").freshnessStatus, "stale");
+});
+
 test("portfolio store tracks partial snapshots, raw import retention, exports, and backups", (t) => {
   const temp = createTempStore();
   t.after(() => temp.cleanup());

@@ -72,6 +72,7 @@ test("Wealthfolio snapshot sync builds holdings-mode projection from normalized 
   assert.match(sql, /BROKER_IMPORTED/);
   assert.match(sql, /FINOPS_BROKER/);
   assert.match(sql, /FINOPS_COST_BASIS/);
+  assert.match(sql, /'19345'/);
   assert.match(sql, /'MANUAL'/);
   assert.match(sql, /DELETE FROM quote_sync_state/);
   assert.match(sql, /DELETE FROM assets/);
@@ -145,6 +146,7 @@ test("Wealthfolio sync helper maps broker names for account labels", () => {
   assert.match(sql, /'PLTR PALANTIR TECHNOLOGIES INC'/);
   assert.match(sql, /'PALANTIR TECHNOLOGIES INC'/);
   assert.match(sql, /'43338\.21'/);
+  assert.match(sql, /'49107\.543'/);
   assert.match(sql, /'2026-06-07'/);
   assert.match(sql, /'4333\.821'/);
   assert.match(sql, /'5769\.333'/);

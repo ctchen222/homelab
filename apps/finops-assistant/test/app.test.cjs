@@ -273,6 +273,16 @@ test("portfolio fixture sync, snapshot lookup, and aggregate endpoints persist n
   assert.equal(aggregateResponse.statusCode, 200);
   assert.equal(aggregateResponse.body.rows.length, 1);
   assert.equal(aggregateResponse.body.rows[0].symbol, "VTI");
+
+  const summaryResponse = await dispatch(
+    handler,
+    request("GET", "/internal/portfolio/summary", undefined, { "x-internal-token": "internal-token" })
+  );
+  assert.equal(summaryResponse.statusCode, 200);
+  assert.equal(summaryResponse.body.accounts.length, 1);
+  assert.equal(summaryResponse.body.accounts[0].accountAlias, "fixture-main");
+  assert.equal(summaryResponse.body.accounts[0].cashBalance, "1250.00000000");
+  assert.equal(summaryResponse.body.accounts[0].holdingsMarketValue, "2500.00000000");
 });
 
 test("portfolio live sync endpoint persists SinoPac connector snapshots for Wealthfolio export", async (t) => {
