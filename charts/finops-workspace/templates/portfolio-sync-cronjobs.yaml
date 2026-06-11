@@ -209,8 +209,10 @@ spec:
               resources:
                 {{- toYaml .Values.portfolioSync.jobs.wealthfolioExport.resources | nindent 16 }}
 {{- end }}
----
-{{- if and .Values.assistant.enabled .Values.portfolioSync.enabled .Values.wealthfolio.enabled .Values.portfolioSync.jobs.wealthfolioSnapshotSync.enabled }}
+{{ if and .Values.assistant.enabled .Values.portfolioSync.enabled .Values.wealthfolio.enabled .Values.portfolioSync.jobs.wealthfolioSnapshotSync.enabled }}
+{{- $wfSync := .Values.portfolioSync.jobs.wealthfolioSnapshotSync -}}
+{{- $brokers := $wfSync.brokers | default (list ($wfSync.brokerId | default "sinopac")) -}}
+{{- $accountAlias := ternary ($wfSync.accountAlias | default "") "" (eq (len $brokers) 1) -}}
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -237,27 +239,30 @@ spec:
             - name: wf-snapshot-sync
               image: "{{ .Values.assistant.image.repository }}:{{ .Values.assistant.image.tag }}"
               imagePullPolicy: {{ .Values.assistant.image.pullPolicy }}
-              command: ["node", "/app/scripts/wealthfolio_snapshot_sync.js"]
+              command: ["/bin/sh", "-ec"]
+              args:
+                - >
+                  for broker in {{ $brokers | join " " }}; do
+                  echo "projecting broker=$broker";
+                  WEALTHFOLIO_SYNC_BROKER_ID="$broker" WEALTHFOLIO_SYNC_ACCOUNT_ALIAS={{ $accountAlias | quote }}
+                  node /app/scripts/wealthfolio_snapshot_sync.js;
+                  done
               env:
                 - name: PORTFOLIO_DB_PATH
                   value: /data/portfolio/portfolio.sqlite
                 - name: WEALTHFOLIO_DB_PATH
                   value: /wfdata/wealthfolio.db
-                - name: WEALTHFOLIO_SYNC_BROKER_ID
-                  value: {{ .Values.portfolioSync.jobs.wealthfolioSnapshotSync.brokerId | quote }}
-                - name: WEALTHFOLIO_SYNC_ACCOUNT_ALIAS
-                  value: {{ .Values.portfolioSync.jobs.wealthfolioSnapshotSync.accountAlias | quote }}
                 - name: WEALTHFOLIO_DISPLAY_CURRENCY
-                  value: {{ .Values.portfolioSync.jobs.wealthfolioSnapshotSync.displayCurrency | quote }}
+                  value: {{ $wfSync.displayCurrency | quote }}
                 - name: WEALTHFOLIO_EXCHANGE_RATES
-                  value: {{ .Values.portfolioSync.jobs.wealthfolioSnapshotSync.exchangeRates | quote }}
+                  value: {{ $wfSync.exchangeRates | quote }}
               volumeMounts:
                 - name: portfolio
                   mountPath: /data/portfolio
                 - name: wfdata
                   mountPath: /wfdata
               resources:
-                {{- toYaml .Values.portfolioSync.jobs.wealthfolioSnapshotSync.resources | nindent 16 }}
+                {{- toYaml $wfSync.resources | nindent 16 }}
           volumes:
             - name: portfolio
               persistentVolumeClaim:

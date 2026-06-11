@@ -244,6 +244,9 @@ portfolioSync:
       enabled: false
       schedule: "20,50 9-13 * * 1-5"
       timeZone: Asia/Taipei
+      brokers:
+        - sinopac
+      # Keep single-broker keys for backward compatibility with older renders.
       brokerId: sinopac
       accountAlias: sinopac-main
       displayCurrency: TWD
