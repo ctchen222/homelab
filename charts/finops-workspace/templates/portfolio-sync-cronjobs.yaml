@@ -271,3 +271,63 @@ spec:
               persistentVolumeClaim:
                 claimName: {{ include "finops.fullname" . }}-wealthfolio
 {{- end }}
+{{ if and .Values.assistant.enabled .Values.portfolioSync.enabled .Values.wealthfolio.enabled .Values.portfolioSync.jobs.marketPriceSync.enabled }}
+{{- $priceSync := .Values.portfolioSync.jobs.marketPriceSync -}}
+{{- $priceBrokers := $priceSync.brokers | default (list "sinopac") -}}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "finops.fullname" . }}-wf-price-sync
+  labels:
+    {{- include "finops.labels" . | nindent 4 }}
+    app.kubernetes.io/component: wealthfolio
+spec:
+  schedule: {{ $priceSync.schedule | quote }}
+  timeZone: {{ $priceSync.timeZone | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          {{- with .Values.global.imagePullSecrets }}
+          imagePullSecrets:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          containers:
+            - name: wf-price-sync
+              image: "{{ .Values.assistant.image.repository }}:{{ .Values.assistant.image.tag }}"
+              imagePullPolicy: {{ .Values.assistant.image.pullPolicy }}
+              command: ["/bin/sh", "-ec"]
+              args:
+                - >
+                  node /app/scripts/wealthfolio_market_price_sync.js;
+              env:
+                - name: PORTFOLIO_DB_PATH
+                  value: /data/portfolio/portfolio.sqlite
+                - name: WEALTHFOLIO_DB_PATH
+                  value: /wfdata/wealthfolio.db
+                - name: WEALTHFOLIO_PRICE_SYNC_BROKERS
+                  value: {{ $priceBrokers | join "," | quote }}
+                - name: WEALTHFOLIO_PRICE_SYNC_DISPLAY_CURRENCY
+                  value: {{ $priceSync.displayCurrency | quote }}
+                - name: WEALTHFOLIO_PRICE_SYNC_EXCHANGE_RATES
+                  value: {{ $priceSync.exchangeRates | quote }}
+              volumeMounts:
+                - name: portfolio
+                  mountPath: /data/portfolio
+                - name: wfdata
+                  mountPath: /wfdata
+              resources:
+                {{- toYaml $priceSync.resources | nindent 16 }}
+          volumes:
+            - name: portfolio
+              persistentVolumeClaim:
+                claimName: {{ include "finops.fullname" . }}-portfolio
+            - name: wfdata
+              persistentVolumeClaim:
+                claimName: {{ include "finops.fullname" . }}-wealthfolio
+{{- end }}
