@@ -5,7 +5,7 @@
 #   - Verify the first direct Wealthfolio projection with real or sanitized data
 #   - Keep Firstrade on import-backed snapshots only; do not treat this stage as a live Firstrade connector
 # Verify after sync:
-#   - `portfolio-sinopac-live-sync` and `wf-snapshot-sync` CronJobs are present
+#   - `sinopac-live-sync` and `wf-snapshot-sync` CronJobs are present
 #   - One-off run of `wf-snapshot-sync` shows both `sinopac` and `firstrade` broker projections
 #   - Wealthfolio UI shows the latest SinoPac and Firstrade holdings without removing prior snapshots unexpectedly
 #   - Assistant and Wealthfolio pods remain healthy after the first scheduled run
