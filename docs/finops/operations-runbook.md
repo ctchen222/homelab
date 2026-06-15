@@ -189,6 +189,89 @@ Security behavior:
 - Redact tokens and avoid logging finance payloads.
 - Redact broker account hashes, holdings payloads, cash balances, raw import rows, import file paths, and export artifacts in logs.
 
+Telegram webhook registration and verification (Guided Flow ready gate):
+
+- Register webhook with callback support:
+
+  ```bash
+  curl -fsS -X POST "https://api.telegram.org/bot${BOT_TOKEN}/setWebhook" \
+    --data-urlencode "url=${WEBHOOK_URL}" \
+    --data-urlencode "secret_token=${TELEGRAM_WEBHOOK_SECRET}" \
+    --data-urlencode 'allowed_updates=["message","edited_message","callback_query"]' \
+    -d "drop_pending_updates=true"
+  ```
+
+- Verify callback support before treating guided flow as production-ready:
+
+  ```bash
+  BOT_TOKEN=... deploy/finops/scripts/verify-telegram-webhook.sh
+  ```
+
+- If `callback_query` is missing from `allowed_updates`, guided buttons will be ignored by Telegram handlers.
+
+### Guided bookkeeping runtime flow (Phase 2)
+
+- Input entry points: quick sentence like `lunch 120`, explicit `income salary 50000`, `/cancel`, `/status`, and full legacy commands.
+- Expense defaulting:
+  - Quick sentence without explicit type is created as an `expense` draft.
+  - Parsed date defaults to local date with `今天`, `昨天`, `前天`, and `YYYY-MM-DD`/`MM/DD` overrides.
+  - Missing amount still remains legacy queue path.
+- Draft state progression:
+  1. `type`（按鈕或文字）
+  2. `amount`
+  3. `date`
+  4. `category`（支出/收入）或 `from_account`/`to_account`（轉帳）
+  5. `account`
+  6. `note`
+  7. `confirm`
+- Button contract:
+  - Every draft step renders only relevant buttons.
+  - Callback data format is compact and internal-state-driven (`draftId + action + optional value`).
+  - Callback path must acknowledge with `answerCallbackQuery`.
+- Category/account selection:
+  - Buttons are built from ezBookkeeping IDs.
+  - New category flow is explicit only:
+    `new_category` -> input name -> parent -> confirm.
+  - Unknown text in draft steps does not auto-create categories.
+- Confirmation/cancel:
+  - Write on explicit `confirm` only.
+  - Duplicate confirm is idempotent and reports already handled.
+  - `/cancel` or cancel button cancels active draft.
+- Smoke test checklist:
+  1. 記錄測試前交易筆數。
+  2. 發送一筆可回溯的非正式 quick sentence。
+  3. 完成到 confirm 並確認可見。
+  4. 刪除/回滾測試交易。
+  5. 驗證交易筆數回到前測試值。
+
+建議驗證指令：
+
+```bash
+# 1) 先確認 guided flow 前置條件
+EBK_API_BASE_URL=https://<ebk-host> EBK_API_TOKEN=<token> BOT_TOKEN=<telegram-bot-token> \
+deploy/finops/scripts/verify-guided-bookkeeping-ready.sh
+
+# 2) VPS guided flow smoke（可支援自動與人工回退）
+ASSISTANT_WEBHOOK_URL=https://<assistant-host>/telegram/webhook \
+ASSISTANT_WEBHOOK_SECRET=<telegram-webhook-secret> \
+EBK_API_BASE_URL=https://<ebk-host> EBK_API_TOKEN=<token> \
+GUIDED_SMOKE_USER_ID=<allowlist-user-id> GUIDED_SMOKE_CHAT_ID=<chat-id> \
+deploy/finops/scripts/verify-guided-bookkeeping-smoke.sh
+
+# 3) 若無法自動刪除，改用手動清理後再回歸檢查
+# 4) 生產日誌機密外洩掃描
+deploy/finops/scripts/verify-guided-bookkeeping-no-leaks.sh
+```
+
+### Phase 3 mini app handoff boundary
+
+- Mini app 只能接管「顯示/輸入」層，不得建立第二條 ezBookkeeping 寫入管道。
+- 所有 mini app 的流程必須回到既有 `BookkeepingDraft` 狀態機：
+  - 用同樣 `draft_id`、`draft.step`、`draft.status` 產生畫面。
+  - 按鈕動作仍走現有 callback action（`set_type`、`set_category`、`confirm` 等）。
+  - 確認送出時只呼叫 assistant 既有 `Draft -> ezBookkeeping` 寫入路徑。
+- 確保 mini app 只能新增輸入方式，不影響既有 Telegram 指令與文字解析行為。
+
 ## Portfolio Operations
 
 Enablement order for portfolio sync:

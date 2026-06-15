@@ -6,8 +6,8 @@
 #   - cert-manager will issue TLS for finops-assistant.178-156-151-78.sslip.io automatically
 # Verify after sync:
 #   - kubectl exec ... curl /healthz and /readyz
-#   - setWebhook with drop_pending_updates=true
-#   - getWebhookInfo confirms registration
+#   - setWebhook with drop_pending_updates=true and allowed_updates=["message","edited_message","callback_query"]
+#   - getWebhookInfo confirms callback_query registration before treating guided flow as ready
 #   - Send one test message; verify allowlist rejection for unknown users
 dailyReport:
   enabled: false

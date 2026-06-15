@@ -56,9 +56,89 @@ test("stores missing fields as ambiguous", () => {
   assert.deepEqual(result.missing, ["category", "account"]);
 });
 
+test("parses quick sentence expense", () => {
+  const result = parseMessage("lunch 120", new Date("2026-06-10T12:00:00.000Z"), {
+    defaultCurrency: "TWD"
+  });
+
+  assert.equal(result.kind, "quick_sentence");
+  assert.equal(result.quickSentence.type, "expense");
+  assert.equal(result.quickSentence.amount, 120);
+  assert.equal(result.quickSentence.currency, "TWD");
+  assert.equal(result.quickSentence.note, "lunch");
+});
+
+test("parses quick sentence with explicit income", () => {
+  const result = parseMessage("income salary 50000", new Date("2026-06-10T12:00:00.000Z"), {
+    defaultCurrency: "TWD"
+  });
+
+  assert.equal(result.kind, "quick_sentence");
+  assert.equal(result.quickSentence.type, "income");
+  assert.equal(result.quickSentence.amount, 50000);
+});
+
+test("parses quick sentence with explicit transfer", () => {
+  const result = parseMessage("transfer 1000 savings", new Date("2026-06-10T12:00:00.000Z"), {
+    defaultCurrency: "TWD"
+  });
+
+  assert.equal(result.kind, "quick_sentence");
+  assert.equal(result.quickSentence.type, "transfer");
+  assert.equal(result.quickSentence.amount, 1000);
+  assert.equal(result.quickSentence.note, "savings");
+});
+
+test("parses quick sentence with daily date", () => {
+  const result = parseMessage("coffee 80 昨天", new Date("2026-06-10T12:00:00.000Z"), {
+    defaultCurrency: "TWD",
+    timezone: "Asia/Taipei"
+  });
+
+  assert.equal(result.kind, "quick_sentence");
+  assert.equal(result.quickSentence.note, "coffee");
+  assert.equal(result.quickSentence.occurredAt, "2026-06-09T00:00:00.000+08:00");
+});
+
+test("parses quick sentence with explicit date and missing amount as ambiguous", () => {
+  const result = parseMessage("coffee 2026-06-10", new Date("2026-06-12T12:00:00.000Z"), {
+    defaultCurrency: "TWD",
+    timezone: "Asia/Taipei"
+  });
+
+  assert.equal(result.kind, "ambiguous");
+  assert.deepEqual(result.missing.includes("amount"), true);
+});
+
+test("rejects future dates in quick sentence", () => {
+  const result = parseMessage("coffee 80 2030-12-31", new Date("2026-06-10T12:00:00.000Z"), {
+    defaultCurrency: "TWD",
+    timezone: "Asia/Taipei"
+  });
+
+  assert.equal(result.kind, "ambiguous");
+  assert.deepEqual(result.missing.includes("date"), true);
+});
+
+test("parses quick sentence with explicit date", () => {
+  const result = parseMessage("2026-06-10 coffee 80", new Date("2026-06-12T12:00:00.000Z"), {
+    defaultCurrency: "TWD",
+    timezone: "Asia/Taipei"
+  });
+
+  assert.equal(result.kind, "quick_sentence");
+  assert.equal(result.quickSentence.note, "coffee");
+  assert.equal(result.quickSentence.occurredAt, "2026-06-10T00:00:00.000+08:00");
+});
+
 test("parses status command", () => {
   const result = parseMessage("status");
   assert.equal(result.kind, "status");
+});
+
+test("parses cancel command", () => {
+  const result = parseMessage("/cancel");
+  assert.equal(result.kind, "cancel");
 });
 
 test("parses category discovery command", () => {

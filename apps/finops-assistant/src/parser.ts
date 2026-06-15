@@ -1,5 +1,6 @@
 import {
   BookkeepingCategoryType,
+  ParsedQuickSentence,
   ParsedMessage,
   ParsedTransaction,
   SpendingOverviewPeriod,
@@ -25,6 +26,7 @@ interface ParseMessageOptions {
   defaultExpenseAccount?: string;
   defaultIncomeAccount?: string;
   knownAccounts?: string[];
+  timezone?: string;
 }
 
 function normalizeCommand(token: string | undefined): string {
@@ -37,6 +39,190 @@ function parseAmount(token: string | undefined): number | undefined {
   if (!/^\d+(\.\d{1,2})?$/.test(normalized)) return undefined;
   const amount = Number.parseFloat(normalized);
   return Number.isFinite(amount) && amount > 0 ? amount : undefined;
+}
+
+function isCurrency(token: string | undefined): boolean {
+  return Boolean(token && /^[A-Za-z]{3}$/.test(token));
+}
+
+function parseDateToken(token: string | undefined, now = new Date(), timezone = "Asia/Taipei"): string | undefined {
+  if (!token) return undefined;
+  const value = token.toLowerCase();
+  if (["今天", "today", "今日"].includes(value)) {
+    return localIsoDateForOffset(now, 0, timezone);
+  }
+  if (["昨天", "yesterday"].includes(value)) {
+    return localIsoDateForOffset(now, -1, timezone);
+  }
+  if (["前天", "daybefore", "day\-before", "2daysago", "two days ago"].includes(value)) {
+    return localIsoDateForOffset(now, -2, timezone);
+  }
+
+  const yyyyMmDd = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (yyyyMmDd) {
+    const [, year, month, day] = yyyyMmDd;
+    return localDateFromParts(numberText(year), numberText(month), numberText(day), now, timezone);
+  }
+
+  const mmDd = value.match(/^(\d{1,2})\/(\d{1,2})$/);
+  if (mmDd) {
+    const [, month, day] = mmDd;
+    const year = nowLocalParts(now, timezone).year;
+    return localDateFromParts(year, numberText(month), numberText(day), now, timezone);
+  }
+
+  return undefined;
+
+  function numberText(value: string): number {
+    return Number.parseInt(value, 10);
+  }
+}
+
+function looksLikeDateToken(token: string | undefined): boolean {
+  if (!token) return false;
+  const value = token.toLowerCase();
+  if (["今天", "today", "今日", "昨天", "yesterday", "前天", "daybefore", "day-before", "2daysago", "two", "day", "ago"].includes(value)) {
+    return true;
+  }
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) || /^\d{1,2}\/(\d{1,2})$/.test(value);
+}
+
+function parseTimezoneOffsetMinutes(timezone: string): number {
+  if (timezone === "Asia/Taipei" || timezone === "Asia/Shanghai") return 480;
+  return 0;
+}
+
+function offsetMinutesToIso(minutes: number): string {
+  const sign = minutes >= 0 ? "+" : "-";
+  const abs = Math.abs(minutes);
+  const hours = Math.floor(abs / 60);
+  const mins = abs % 60;
+  return `${sign}${String(hours).padStart(2, "0")}:${String(mins).padStart(2, "0")}`;
+}
+
+function nowLocalParts(date: Date, timezone: string): { year: number; month: number; day: number } {
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  const [year, month, day] = formatter.format(date).split("-").map((value) => Number.parseInt(value, 10));
+  return { year, month, day };
+}
+
+function localDateFromDate(date: Date, timezone: string): string {
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  return formatter.format(date);
+}
+
+function localDateFromParts(year: number, month: number, day: number, now: Date, timezone: string): string | undefined {
+  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) return undefined;
+
+  const offsetMinutes = parseTimezoneOffsetMinutes(timezone);
+  const target = new Date(Date.UTC(year, month - 1, day) - offsetMinutes * 60_000);
+  if (Number.isNaN(target.getTime())) return undefined;
+
+  const date = localDateFromDate(target, timezone);
+  const nowParts = nowLocalParts(now, timezone);
+  if (!nowParts) return undefined;
+  const nowDate = new Date(Date.UTC(nowParts.year, nowParts.month - 1, nowParts.day) - offsetMinutes * 60_000);
+  const futureCutoff = nowDate.toISOString();
+  if (date > futureCutoff.slice(0, 10)) {
+    return undefined;
+  }
+
+  return `${date}T00:00:00.000${offsetMinutesToIso(offsetMinutes)}`;
+}
+
+function localIsoDateForOffset(now: Date, dayOffset: number, timezone: string): string {
+  const offsetMinutes = parseTimezoneOffsetMinutes(timezone);
+  const nowParts = nowLocalParts(now, timezone);
+  const utc = Date.UTC(nowParts.year, nowParts.month - 1, nowParts.day + dayOffset);
+  const target = new Date(utc - offsetMinutes * 60_000);
+  const date = localDateFromDate(target, timezone);
+  return `${date}T00:00:00.000${offsetMinutesToIso(offsetMinutes)}`;
+}
+
+function parseQuickSentence(input: string, now: Date, options: ParseMessageOptions): ParsedMessage | undefined {
+  const normalizedText = normalizeText(input);
+  if (!normalizedText) return undefined;
+
+  const tokens = normalizedText.split(" ");
+  const firstToken = tokens[0].toLowerCase();
+  const explicitType = ["expense", "支出", "income", "收入", "transfer", "轉帳", "轉賬", "move"].includes(firstToken);
+  const type = explicitType
+    ? (firstToken === "expense" || firstToken === "支出" || firstToken === "move")
+      ? "expense"
+      : firstToken === "income" || firstToken === "收入"
+        ? "income"
+        : "transfer"
+    : "expense";
+
+  const amountIndex = tokens.findIndex((token, index) => index > (explicitType ? 0 : -1) && parseAmount(token) !== undefined);
+  if (amountIndex < 0) return undefined;
+
+  const amount = parseAmount(tokens[amountIndex]);
+  if (amount === undefined) return undefined;
+
+  const currencyIndex =
+    isCurrency(tokens[amountIndex + 1]) ? amountIndex + 1 :
+    (isCurrency(tokens[amountIndex - 1]) ? amountIndex - 1 : undefined);
+
+  const timezone = options.timezone || "Asia/Taipei";
+  const dateTokens = [];
+  let hasDateLikeToken = false;
+  for (let index = 0; index < tokens.length; index += 1) {
+    const candidate = parseDateToken(tokens[index], now, timezone);
+    if (looksLikeDateToken(tokens[index])) hasDateLikeToken = true;
+    if (candidate) {
+      dateTokens.push({ index, value: candidate });
+    }
+  }
+
+  if (hasDateLikeToken && dateTokens.length === 0) {
+    return { kind: "ambiguous", missing: ["date"], normalizedText };
+  }
+
+  if (dateTokens.length > 1) {
+    const latest = dateTokens[dateTokens.length - 1];
+    dateTokens.length = 1;
+    dateTokens[0] = latest;
+  }
+
+  const parsedDate = dateTokens[0]?.value || localIsoDateForOffset(now, 0, timezone);
+  if (!parsedDate) return undefined;
+
+  const skipIndexes = new Set<number>([amountIndex, currencyIndex || -1]);
+  if (explicitType) skipIndexes.add(0);
+  for (const { index } of dateTokens) skipIndexes.add(index);
+
+  const note = tokens
+    .filter((_, index) => !skipIndexes.has(index) && tokens[index] !== "")
+    .join(" ")
+    .trim();
+
+  if (!note) {
+    return { kind: "ambiguous", missing: ["note"], normalizedText };
+  }
+
+  return {
+    kind: "quick_sentence",
+    quickSentence: {
+      type,
+      amount,
+      currency: (currencyIndex !== undefined ? tokens[currencyIndex].toUpperCase() : (options.defaultCurrency || "TWD").toUpperCase()),
+      currencyDefaulted: currencyIndex === undefined,
+      note,
+      occurredAt: parsedDate,
+      explicitType,
+    },
+  };
 }
 
 function findToken(tokens: string[], name: string): string | undefined {
@@ -87,10 +273,6 @@ function parseCategoryType(token: string | undefined): BookkeepingCategoryType |
   if (type === "expense" || type === "expenses" || type === "spending") return "expense";
   if (type === "transfer" || type === "transfers") return "transfer";
   return undefined;
-}
-
-function isCurrency(token: string | undefined): boolean {
-  return Boolean(token && /^[A-Za-z]{3}$/.test(token));
 }
 
 function knownAccountSet(options: ParseMessageOptions): Set<string> {
@@ -184,6 +366,10 @@ export function parseMessage(input: string, now = new Date(), options: ParseMess
     return { kind: "help" };
   }
 
+  if (command === "cancel") {
+    return { kind: "cancel" };
+  }
+
   if (command === "status") {
     return { kind: "status" };
   }
@@ -234,6 +420,7 @@ export function parseMessage(input: string, now = new Date(), options: ParseMess
   }
 
   const type = TYPE_ALIASES[command];
+  const typeWasSpecified = Boolean(type);
   const amount = parseAmount(tokens[1]);
   const hasExplicitCurrency = isCurrency(tokens[2]);
   const currency = hasExplicitCurrency ? tokens[2]?.toUpperCase() : options.defaultCurrency?.toUpperCase();
@@ -243,6 +430,30 @@ export function parseMessage(input: string, now = new Date(), options: ParseMess
   if (!type) missing.push("type");
   if (!amount) missing.push("amount");
   if (!currency || !/^[A-Z]{3}$/.test(currency)) missing.push("currency");
+
+  const explicitTypeSentence = parseQuickSentence(normalizedText, now, options);
+  if (!type && explicitTypeSentence) {
+    return explicitTypeSentence;
+  }
+  if (command && typeWasSpecified && explicitTypeSentence && explicitTypeSentence.kind === "quick_sentence") {
+    const accountAliases = knownAccountSet(options);
+    const defaultAccount = type === "income" ? options.defaultIncomeAccount : options.defaultExpenseAccount;
+    const explicitAccount = findToken(tokens, "account");
+    const commandIsComplete =
+      type === "transfer"
+        ? Boolean((findToken(tokens, "from") || tokens[fieldStart]) && (findToken(tokens, "to") || tokens[fieldStart + 1]))
+        : Boolean(
+            (findToken(tokens, "category") || tokens[fieldStart]) &&
+              (explicitAccount ||
+                (tokens[fieldStart + 1] &&
+                  (!defaultAccount || accountAliases.has((tokens[fieldStart + 1] || "").toLowerCase()))
+                  ? tokens[fieldStart + 1]
+                  : defaultAccount))
+          );
+    if (!commandIsComplete) {
+      return explicitTypeSentence;
+    }
+  }
 
   if (missing.length > 0 || !type || !amount || !currency) {
     return { kind: "ambiguous", missing, normalizedText };
