@@ -18,7 +18,6 @@ on:
 permissions:
   contents: write
   packages: write
-  pull-requests: write
 
 env:
   REGISTRY: ghcr.io
@@ -84,13 +83,15 @@ jobs:
           cat /tmp/imagetools.out
 
   update-gitops-image-tags:
-    name: Open GitOps image tag PR
+    name: Commit GitOps image tags
     runs-on: ubuntu-latest
     needs: publish
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: main
 
       - name: Update production image tags
         env:
@@ -133,14 +134,16 @@ jobs:
           path.write_text("\n".join(lines) + "\n")
           PY
 
-      - name: Create image tag update PR
-        uses: peter-evans/create-pull-request@v6
-        with:
-          branch: chore/update-finops-image-tags
-          delete-branch: true
-          title: "chore(finops): update production image tags"
-          commit-message: "chore(finops): update production image tags"
-          body: |
-            Updates the production FinOps image tags to `${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/*:main-${{ github.sha }}` after the images were published from `main`.
+      - name: Commit updated image tags to main
+        shell: bash
+        run: |
+          if git diff --quiet -- charts/finops-workspace/values-prod.yaml; then
+            echo "No image tag changes to commit."
+            exit 0
+          fi
 
-            This keeps the ArgoCD desired state aligned with the immutable image tags produced by CI.
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add charts/finops-workspace/values-prod.yaml
+          git commit -m "chore(finops): update production image tags"
+          git push origin HEAD:main
