@@ -120,6 +120,7 @@ WEBHOOK_URL="${PUBLIC_URL}/telegram/webhook"
 curl -fsS -X POST "https://api.telegram.org/bot${BOT_TOKEN}/setWebhook" \
   --data-urlencode "url=${WEBHOOK_URL}" \
   --data-urlencode "secret_token=${WEBHOOK_SECRET}" \
+  --data-urlencode 'allowed_updates=["message","edited_message","callback_query"]' \
   -d "drop_pending_updates=true" >/dev/null
 
 echo "ngrok URL: ${PUBLIC_URL}"

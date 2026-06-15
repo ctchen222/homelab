@@ -8,18 +8,33 @@ export interface ParsedTransaction {
   currency: string;
   currencyDefaulted?: boolean;
   category?: string;
+  categoryId?: string;
   account?: string;
+  accountId?: string;
   accountDefaulted?: boolean;
   fromAccount?: string;
+  fromAccountId?: string;
   toAccount?: string;
+  toAccountId?: string;
   note?: string;
   occurredAt: string;
+}
+
+export interface ParsedQuickSentence {
+  type: TransactionType;
+  amount: number;
+  currency: string;
+  currencyDefaulted: boolean;
+  note: string;
+  occurredAt: string;
+  explicitType: boolean;
 }
 
 export type ParsedMessage =
   | { kind: "transaction"; transaction: ParsedTransaction }
   | { kind: "status" }
   | { kind: "help" }
+  | { kind: "cancel" }
   | { kind: "overview"; period: SpendingOverviewPeriod }
   | { kind: "categories"; categoryType?: BookkeepingCategoryType }
   | { kind: "accounts" }
@@ -36,8 +51,63 @@ export type ParsedMessage =
       parentName?: string;
       alias?: string;
     }
+  | { kind: "quick_sentence"; quickSentence: ParsedQuickSentence }
   | { kind: "correction"; reference: string; note: string }
   | { kind: "ambiguous"; missing: string[]; normalizedText: string };
+
+export type BookkeepingDraftStep =
+  | "type"
+  | "amount"
+  | "date"
+  | "note"
+  | "category"
+  | "account"
+  | "from_account"
+  | "to_account"
+  | "confirm"
+  | "new_category_name"
+  | "new_category_parent"
+  | "new_category_confirm";
+
+export type BookkeepingDraftStatus = "active" | "confirmed" | "cancelled" | "expired" | "failed";
+
+export interface BookkeepingDraft {
+  draftId: string;
+  userId: number;
+  chatId: number;
+  sourceUpdateId: number;
+  type: TransactionType;
+  amount?: number;
+  currency?: string;
+  transactionDate: string;
+  categoryId?: string;
+  categoryName?: string;
+  categoryAlias?: string;
+  accountId?: string;
+  accountName?: string;
+  accountAlias?: string;
+  fromAccountId?: string;
+  fromAccountName?: string;
+  toAccountId?: string;
+  toAccountName?: string;
+  note?: string;
+  step: BookkeepingDraftStep;
+  status: BookkeepingDraftStatus;
+  writeTransactionId?: string;
+  failureReason?: string;
+  createCategoryName?: string;
+  createCategoryParent?: string;
+  createCategoryType?: BookkeepingCategoryType;
+  createdAt: string;
+  updatedAt: string;
+  expiresAt: string;
+}
+
+export interface ParsedCallback {
+  draftId: string;
+  action: string;
+  value?: string;
+}
 
 export interface CategoryAliasRecord {
   alias: string;
@@ -52,6 +122,7 @@ export interface TelegramMessage {
   userId: number;
   text: string;
   callbackQueryId?: string;
+  callbackMessageId?: number;
 }
 
 export interface PendingReviewItem {
