@@ -65,6 +65,7 @@ interface TelegramWebhookReply {
   chat_id: number | string;
   text: string;
   disable_web_page_preview: boolean;
+  reply_markup?: unknown;
 }
 
 function json(response: HttpResponseLike, statusCode: number, payload: unknown): void {
@@ -106,6 +107,7 @@ function telegramWebhookReplyFromBody(body: BodyInit | null | undefined): Telegr
       chat_id?: unknown;
       text?: unknown;
       disable_web_page_preview?: unknown;
+      reply_markup?: unknown;
     };
 
     if ((typeof payload.chat_id !== "number" && typeof payload.chat_id !== "string") || typeof payload.text !== "string") {
@@ -117,6 +119,7 @@ function telegramWebhookReplyFromBody(body: BodyInit | null | undefined): Telegr
       chat_id: payload.chat_id,
       text: payload.text,
       disable_web_page_preview: payload.disable_web_page_preview !== false,
+      ...(payload.reply_markup ? { reply_markup: payload.reply_markup } : {}),
     };
   } catch {
     return undefined;

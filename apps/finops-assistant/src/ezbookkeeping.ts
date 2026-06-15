@@ -263,14 +263,17 @@ export function buildTransactionRequest(config: AppConfig, transaction: ParsedTr
   const sourceAccountId = lookup(config.ezBookkeepingAccountIds, transaction.account || transaction.fromAccount);
   const destinationAccountId = lookup(config.ezBookkeepingAccountIds, transaction.toAccount);
   const categoryId = lookup(config.ezBookkeepingCategoryIds, transaction.category || "Account Transfer");
+  const sourceAccountIdById = transaction.accountId || sourceAccountId;
+  const destinationAccountIdById = transaction.toAccountId || destinationAccountId;
+  const categoryIdById = transaction.categoryId || categoryId;
 
-  if (!sourceAccountId) {
+  if (!sourceAccountIdById) {
     throw new Error("missing ezBookkeeping source account mapping");
   }
-  if (transaction.type === "transfer" && !destinationAccountId) {
+  if (transaction.type === "transfer" && !destinationAccountIdById) {
     throw new Error("missing ezBookkeeping destination account mapping");
   }
-  if (transaction.type !== "transfer" && !categoryId) {
+  if (transaction.type !== "transfer" && !categoryIdById) {
     throw new Error("missing ezBookkeeping category mapping");
   }
 
@@ -278,7 +281,7 @@ export function buildTransactionRequest(config: AppConfig, transaction: ParsedTr
     type: transactionType(transaction.type),
     time: Math.floor(new Date(transaction.occurredAt).getTime() / 1000),
     utcOffset: 480,
-    sourceAccountId,
+    sourceAccountId: sourceAccountIdById,
     sourceAmount: cents(transaction.amount),
     comment: [transaction.currency, transaction.note].filter(Boolean).join(" - "),
     hideAmount: false,
@@ -286,9 +289,9 @@ export function buildTransactionRequest(config: AppConfig, transaction: ParsedTr
     pictureIds: []
   };
 
-  if (categoryId) body.categoryId = categoryId;
-  if (destinationAccountId) {
-    body.destinationAccountId = destinationAccountId;
+  if (categoryIdById) body.categoryId = categoryIdById;
+  if (destinationAccountIdById) {
+    body.destinationAccountId = destinationAccountIdById;
     body.destinationAmount = cents(transaction.amount);
   }
 

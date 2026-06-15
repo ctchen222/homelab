@@ -161,6 +161,54 @@ test("telegram webhook can reply through webhook response without outbound Bot A
   });
 });
 
+test("telegram webhook preserves inline keyboard in webhook reply", async () => {
+  const handler = createRequestHandler(baseConfig, store(), {
+    handleTelegramUpdate: async (_update, _config, _store, { fetchImpl }) => {
+      await fetchImpl("https://api.telegram.org/bottoken/sendMessage", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chat_id: 100,
+          text: "choose a category",
+          disable_web_page_preview: true,
+          reply_markup: {
+            inline_keyboard: [[{ text: "Lunch", callback_data: "finops:d:draft-1:select_category:cat-1" }]]
+          }
+        })
+      });
+      return { status: "accepted", message: "ok" };
+    }
+  });
+
+  const response = await dispatch(
+    handler,
+    request(
+      "POST",
+      "/telegram/webhook",
+      {
+        update_id: 9,
+        message: {
+          from: { id: 100 },
+          chat: { id: 100 },
+          text: "lunch 120"
+        }
+      },
+      { "x-telegram-bot-api-secret-token": "webhook-secret" }
+    )
+  );
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.body, {
+    method: "sendMessage",
+    chat_id: 100,
+    text: "choose a category",
+    disable_web_page_preview: true,
+    reply_markup: {
+      inline_keyboard: [[{ text: "Lunch", callback_data: "finops:d:draft-1:select_category:cat-1" }]]
+    }
+  });
+});
+
 test("daily report endpoint requires internal token", async () => {
   const handler = createRequestHandler(baseConfig, store(), {
     generateDailyReport: async () => {
