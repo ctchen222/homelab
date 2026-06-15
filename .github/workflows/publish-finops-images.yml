@@ -16,8 +16,9 @@ on:
       - jobs/market-research/**
 
 permissions:
-  contents: read
+  contents: write
   packages: write
+  pull-requests: write
 
 env:
   REGISTRY: ghcr.io
@@ -81,3 +82,65 @@ jobs:
           echo "Verified: ${image_ref}"
           echo "--------------------------------------------------"
           cat /tmp/imagetools.out
+
+  update-gitops-image-tags:
+    name: Open GitOps image tag PR
+    runs-on: ubuntu-latest
+    needs: publish
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Update production image tags
+        env:
+          IMAGE_TAG: main-${{ github.sha }}
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import os
+          import re
+          from pathlib import Path
+
+          path = Path("charts/finops-workspace/values-prod.yaml")
+          image_tag = os.environ["IMAGE_TAG"]
+          lines = path.read_text().splitlines()
+
+          sections = {"assistant", "marketResearch"}
+          updated = set()
+          current_section = None
+          in_image = False
+
+          for index, line in enumerate(lines):
+              if line and not line.startswith(" "):
+                  current_section = line[:-1] if line.endswith(":") else None
+                  in_image = False
+                  continue
+
+              if current_section in sections and re.match(r"^  image:\s*$", line):
+                  in_image = True
+                  continue
+
+              if in_image and re.match(r"^    tag:\s*", line):
+                  lines[index] = f'    tag: "{image_tag}"'
+                  updated.add(current_section)
+                  in_image = False
+
+          missing = sections - updated
+          if missing:
+              raise SystemExit(f"Failed to update image tags for: {', '.join(sorted(missing))}")
+
+          path.write_text("\n".join(lines) + "\n")
+          PY
+
+      - name: Create image tag update PR
+        uses: peter-evans/create-pull-request@v6
+        with:
+          branch: chore/update-finops-image-tags
+          delete-branch: true
+          title: "chore(finops): update production image tags"
+          commit-message: "chore(finops): update production image tags"
+          body: |
+            Updates the production FinOps image tags to `${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/*:main-${{ github.sha }}` after the images were published from `main`.
+
+            This keeps the ArgoCD desired state aligned with the immutable image tags produced by CI.
