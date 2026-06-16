@@ -12,6 +12,43 @@ This runbook defines the repo-owned operating conventions for the FinOps workspa
 6. Enable the market research CronJob.
 7. Publish homepage metadata and verify health links.
 
+## GitOps Release and Drift Policy
+
+The FinOps workspace production state is owned by Git, not by ad hoc live patches.
+
+Required release path:
+
+1. Merge application changes to `main`.
+2. GitHub Actions publishes immutable FinOps image tags such as `main-<sha>`.
+3. GitHub Actions updates `charts/finops-workspace/values-prod.yaml` with the published image tag.
+4. Argo CD reconciles `finops-workspace` from `targetRevision: main`.
+5. Production deployment image matches the image tag declared in `values-prod.yaml`.
+
+Required rollback path:
+
+1. Revert or change the Git commit that declared the production image tag.
+2. Let Argo CD reconcile the reverted desired state.
+3. Verify the live deployment image and application sync status.
+
+Do not use these as normal deployment or rollback mechanisms:
+
+- Patching `finops-workspace.spec.source.targetRevision` to a commit SHA.
+- Running `kubectl set image` against FinOps production deployments.
+- Relying on mutable production tags such as `0.1.1` after immutable `main-<sha>` tags are available.
+
+Before treating a FinOps deployment as healthy, verify that Argo CD is following `main` and the live assistant image matches the repo-owned values file:
+
+```bash
+bash deploy/finops/scripts/verify-gitops-drift.sh
+```
+
+Useful environment overrides:
+
+- `KUBECTL_CONTEXT`: default `furfriend-vps`
+- `ARGO_APPLICATION_NAME`: default `finops-workspace`
+- `EXPECTED_TARGET_REVISION`: default `main`
+- `FINOPS_ASSISTANT_DEPLOYMENT`: default `finops-workspace-finops-workspace-assistant`
+
 ## Namespace and Private Access
 
 - Namespace: `finops`
