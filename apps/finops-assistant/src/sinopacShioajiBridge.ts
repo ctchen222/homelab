@@ -34,10 +34,13 @@ export interface SinoPacShioajiBridgeOptions {
 
 export function createSinoPacShioajiBridgeProvider(options: SinoPacShioajiBridgeOptions): ShioajiPositionProvider {
   let cachedPayload: Promise<SinoPacBridgePayload> | undefined;
+  let cachedRequestKey: string | undefined;
 
   async function readPayload(request: BrokerSyncRequest): Promise<SinoPacBridgePayload> {
-    if (!cachedPayload) {
+    const requestKey = `${request.accountAlias}|${request.mode}|${request.requestedAt}`;
+    if (!cachedPayload || cachedRequestKey !== requestKey) {
       cachedPayload = executeBridge(options, request);
+      cachedRequestKey = requestKey;
     }
 
     return cachedPayload;

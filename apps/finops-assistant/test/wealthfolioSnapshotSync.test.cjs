@@ -1,5 +1,9 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const { mkdtempSync, rmSync } = require("node:fs");
+const { execFileSync } = require("node:child_process");
+const { tmpdir } = require("node:os");
+const { join } = require("node:path");
 const {
   brokerDisplayName,
   buildWealthfolioProjection,
@@ -7,8 +11,45 @@ const {
   stableId
 } = require("../scripts/wealthfolio_snapshot_sync.js");
 
+function makeWealthfolioDb() {
+  const dir = mkdtempSync(join(tmpdir(), "wf-snapshot-quotes-"));
+  const dbPath = join(dir, "wealthfolio.db");
+  execFileSync("sqlite3", [dbPath], {
+    input: `
+      CREATE TABLE quotes (
+        id TEXT PRIMARY KEY,
+        asset_id TEXT NOT NULL,
+        day TEXT NOT NULL,
+        source TEXT NOT NULL,
+        open TEXT,
+        high TEXT,
+        low TEXT,
+        close TEXT,
+        adjclose TEXT,
+        volume TEXT,
+        currency TEXT,
+        notes TEXT,
+        created_at TEXT,
+        timestamp TEXT,
+        UNIQUE(asset_id, day, source)
+      );
+    `,
+    encoding: "utf8"
+  });
+  return { dir, dbPath };
+}
+
+function runQuery(dbPath, sql) {
+  const raw = execFileSync("sqlite3", ["-json", dbPath, sql], { encoding: "utf8" }).trim();
+  return raw ? JSON.parse(raw) : [];
+}
+
 test("Wealthfolio snapshot sync builds holdings-mode projection from normalized broker snapshot", () => {
-  const now = new Date("2026-06-08T03:00:00.000Z");
+  const now = new Date("2026-06-09T03:00:00.000Z");
+  const snapshotAsOf = "2026-06-08T02:39:18.000Z";
+  const asOfDate = "2026-06-08";
+  const sinopacAssetId = stableId("finops-asset", ["sinopac", "TWSE", "2330"]);
+  const brokerQuoteId = stableId("finops-quote", [sinopacAssetId, asOfDate, "FINOPS_BROKER"]);
   const projection = buildWealthfolioProjection(
     [
       {
@@ -22,7 +63,7 @@ test("Wealthfolio snapshot sync builds holdings-mode projection from normalized 
           freshness_status: "partial",
           missing_fields_json: "[\"holdings.marketValue\"]",
           base_currency: "TWD",
-          as_of: "2026-06-08T02:39:18.000Z",
+          as_of: snapshotAsOf,
           created_at: "2026-06-08T02:39:20.000Z"
         },
         holdings: [
@@ -72,13 +113,128 @@ test("Wealthfolio snapshot sync builds holdings-mode projection from normalized 
   assert.match(sql, /BROKER_IMPORTED/);
   assert.match(sql, /FINOPS_BROKER/);
   assert.match(sql, /FINOPS_COST_BASIS/);
+  assert.match(sql, new RegExp(brokerQuoteId));
+  assert.match(sql, /'850'/);
   assert.match(sql, /'19345'/);
+  assert.match(sql, /'2026-06-08'/);
   assert.match(sql, /'MANUAL'/);
   assert.match(sql, /DELETE FROM quote_sync_state/);
   assert.match(sql, /DELETE FROM assets/);
   assert.match(sql, /id NOT IN/);
   assert.doesNotMatch(sql, /Closed Holding/);
+  assert.doesNotMatch(sql, /FINOPS_MARKET/);
   assert.doesNotMatch(sql, /undefined/);
+});
+
+test("SinoPac FINOPS_BROKER quote stays canonical when no FINOPS_MARKET rows are present", (t) => {
+  const paths = makeWealthfolioDb();
+  t.after(() => rmSync(paths.dir, { recursive: true, force: true }));
+  const now = new Date("2026-06-10T03:00:00.000Z");
+  const snapshotAsOf = "2026-06-10T02:39:18.000Z";
+  const asOfDate = "2026-06-10";
+  const sinopacAssetId = stableId("finops-asset", ["sinopac", "TWSE", "2330"]);
+  const brokerQuoteId = stableId("finops-quote", [sinopacAssetId, asOfDate, "FINOPS_BROKER"]);
+  const firstProjection = buildWealthfolioProjection(
+    [
+      {
+        run: {
+          sync_run_id: "sync-1",
+          broker_id: "sinopac",
+          account_alias: "sinopac-main",
+          source_type: "live-api",
+          source_name: "sinopac-shioaji",
+          source_timestamp: snapshotAsOf,
+          freshness_status: "partial",
+          missing_fields_json: "[]",
+          base_currency: "TWD",
+          as_of: snapshotAsOf,
+          created_at: now.toISOString()
+        },
+        holdings: [
+          {
+            market: "TWSE",
+            symbol: "2330",
+            provider_symbol: "2330",
+            security_name: "TSMC",
+            asset_type: "stock",
+            currency: "TWD",
+            quantity: "10",
+            average_cost: "700",
+            cost_basis: "7000",
+            last_price: "880",
+            market_value: "",
+            as_of: snapshotAsOf
+          }
+        ],
+        cashBalances: [{ currency: "TWD", amount: "1000", balance_type: "available", as_of: snapshotAsOf }]
+      }
+    ],
+    now
+  );
+  const secondProjection = buildWealthfolioProjection(
+    [
+      {
+        run: {
+          sync_run_id: "sync-2",
+          broker_id: "sinopac",
+          account_alias: "sinopac-main",
+          source_type: "live-api",
+          source_name: "sinopac-shioaji",
+          source_timestamp: "2026-06-10T03:00:00.000Z",
+          freshness_status: "partial",
+          missing_fields_json: "[]",
+          base_currency: "TWD",
+          as_of: "2026-06-10T03:00:00.000Z",
+          created_at: "2026-06-10T03:00:30.000Z"
+        },
+        holdings: [
+          {
+            market: "TWSE",
+            symbol: "2330",
+            provider_symbol: "2330",
+            security_name: "TSMC",
+            asset_type: "stock",
+            currency: "TWD",
+            quantity: "10",
+            average_cost: "700",
+            cost_basis: "7000",
+            last_price: "900",
+            market_value: "",
+            as_of: "2026-06-10T03:00:00.000Z"
+          }
+        ],
+        cashBalances: [{ currency: "TWD", amount: "1000", balance_type: "available", as_of: "2026-06-10T03:00:00.000Z" }]
+      }
+    ],
+    new Date("2026-06-10T03:01:00.000Z")
+  );
+
+  const quoteStatements = [
+    ...firstProjection.statements.filter((statement) => statement.includes("INSERT INTO quotes")),
+    ...secondProjection.statements.filter((statement) => statement.includes("INSERT INTO quotes"))
+  ].join("\n");
+  execFileSync("sqlite3", [paths.dbPath], { input: quoteStatements, encoding: "utf8" });
+
+  const allRows = runQuery(
+    paths.dbPath,
+    `SELECT source, close FROM quotes WHERE asset_id = ${JSON.stringify(sinopacAssetId)} ORDER BY source;`
+  );
+  const brokerRows = runQuery(
+    paths.dbPath,
+    `SELECT source, close FROM quotes WHERE asset_id = ${JSON.stringify(sinopacAssetId)} AND source = 'FINOPS_BROKER';`
+  );
+  const marketRows = runQuery(
+    paths.dbPath,
+    `SELECT source, close FROM quotes WHERE asset_id = ${JSON.stringify(sinopacAssetId)} AND source = 'FINOPS_MARKET';`
+  );
+
+  assert.equal(allRows.length, 2);
+  assert.equal(brokerRows.length, 1);
+  assert.equal(marketRows.length, 0);
+  assert.equal(brokerRows[0].source, "FINOPS_BROKER");
+  assert.equal(brokerRows[0].close, "900");
+  assert.match(firstProjection.statements.join("\n"), /ON CONFLICT\(asset_id, day, source\) DO UPDATE/);
+  assert.match(secondProjection.statements.join("\n"), new RegExp(brokerQuoteId));
 });
 
 test("Wealthfolio sync helper maps common market codes to MICs and stable IDs", () => {
