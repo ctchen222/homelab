@@ -94,6 +94,62 @@ test("buildHoldingsUniverse returns latest non-zero holdings for selected broker
   assert.equal(rows.find((row) => row.symbol === "2330").sync_run_id, "sync-new");
 });
 
+test("syncMarketPrices with sinopac-only filter does not touch firstrade holdings", async () => {
+  const portfolioDbPath = makePortfolioDb();
+  const wealthfolioDbPath = makeWealthfolioDb();
+  const fixtureDir = mkdtempSync(join(tmpdir(), "wf-market-price-fixture-"));
+  const fixturePath = join(fixtureDir, "prices.json");
+
+  execFileSync("sqlite3", [portfolioDbPath], {
+    input: `
+      INSERT INTO portfolio_sync_runs VALUES
+        ('sync-tw', 'sinopac', 'sinopac-main', 'TWD', '2026-06-11T02:00:00.000Z', 'partial', '2026-06-11T02:00:01.000Z'),
+        ('sync-us', 'firstrade', 'firstrade-main', 'USD', '2026-06-11T02:00:00.000Z', 'partial', '2026-06-11T02:00:01.000Z');
+      INSERT INTO portfolio_holdings VALUES
+        ('sync-tw', 'TWSE', '2330', '2330', 'TSMC', 'TWD', '12', '950'),
+        ('sync-us', 'NASDAQ', 'QQQ', 'C078361', 'QQQ ETF', 'USD', '3', '510');
+    `,
+    encoding: "utf8"
+  });
+
+  writeFileSync(
+    fixturePath,
+    JSON.stringify({
+      "2330": { currentPrice: 1000, notes: ["fixture tw"] }
+    }),
+    "utf8"
+  );
+
+  const result = await syncMarketPrices({
+    portfolioDbPath,
+    wealthfolioDbPath,
+    brokers: "sinopac",
+    displayCurrency: "TWD",
+    exchangeRates: "USD:TWD=32.1",
+    fixturePath,
+    now: "2026-06-11T03:00:00.000Z",
+    dryRun: false
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.quotesUpdated, 1);
+  const rows = JSON.parse(
+    execFileSync(
+      "sqlite3",
+      [
+        "-json",
+        wealthfolioDbPath,
+        "SELECT source, asset_id, day FROM quotes ORDER BY source;"
+      ],
+      { encoding: "utf8" }
+    )
+  );
+
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].source, "FINOPS_MARKET");
+  assert.equal(rows[0].asset_id, stableId("finops-asset", ["sinopac", "TWSE", "2330"]));
+});
+
 test("fetchMarketQuotes resolves TWSE and Yahoo-compatible quotes", async () => {
   const holdings = [
     {

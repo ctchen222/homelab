@@ -28,13 +28,9 @@ portfolioSync:
       enabled: true
       brokers:
         - sinopac
-        - firstrade
       accountAlias: ""
     marketPriceSync:
-      enabled: true
-      brokers:
-        - sinopac
-        - firstrade
+      enabled: false
 
 ezbookkeeping:
   ingressRoute:
