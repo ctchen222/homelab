@@ -437,6 +437,26 @@ function previousDraftStep(draft: DraftFlowState): BookkeepingDraftStep | undefi
   }
 }
 
+export function escapeHtml(value: string): string {
+  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function stripHtmlTags(value: string): string {
+  return value
+    .replace(/<[^>]+>/g, "")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&");
+}
+
+async function responseBody(response: Response): Promise<string> {
+  return response.text().catch(() => "");
+}
+
+function isTelegramHtmlParseError(status: number, body: string): boolean {
+  return status === 400 && /can't parse entities/i.test(body);
+}
+
 export async function sendTelegramMessage(
   config: AppConfig,
   chatId: number | string,
@@ -446,23 +466,29 @@ export async function sendTelegramMessage(
 ): Promise<boolean> {
   if (!config.telegramBotToken) return false;
 
+  const send = async (payloadText: string, parseMode?: string): Promise<Response> =>
+    fetchImpl(`${TELEGRAM_API_BASE}${config.telegramBotToken}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text: payloadText,
+        disable_web_page_preview: true,
+        ...(parseMode ? { parse_mode: parseMode } : {}),
+        ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
+      }),
+    });
+
   try {
-    const response = await fetchImpl(
-      `${TELEGRAM_API_BASE}${config.telegramBotToken}/sendMessage`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          chat_id: chatId,
-          text,
-          disable_web_page_preview: true,
-          ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
-        }),
-      },
-    );
+    let response = await send(text, "HTML");
+    let body = response.ok ? "" : await responseBody(response);
+    if (!response.ok && isTelegramHtmlParseError(response.status, body)) {
+      // Malformed entities make Telegram reject the whole message; deliver plain text instead of losing it.
+      response = await send(stripHtmlTags(text));
+      body = response.ok ? "" : await responseBody(response);
+    }
 
     if (!response.ok) {
-      const body = await response.text().catch(() => "");
       console.warn(
         "telegram delivery failed",
         JSON.stringify({ status: response.status, body: body.slice(0, 200) }),
@@ -491,20 +517,28 @@ async function sendTelegramEditMessage(
   if (!config.telegramBotToken) return false;
 
   try {
-    const response = await fetchImpl(`${TELEGRAM_API_BASE}${config.telegramBotToken}/editMessageText`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        chat_id: chatId,
-        message_id: messageId,
-        text,
-        disable_web_page_preview: true,
-        ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
-      }),
-    });
+    const send = async (payloadText: string, parseMode?: string): Promise<Response> =>
+      fetchImpl(`${TELEGRAM_API_BASE}${config.telegramBotToken}/editMessageText`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chat_id: chatId,
+          message_id: messageId,
+          text: payloadText,
+          disable_web_page_preview: true,
+          ...(parseMode ? { parse_mode: parseMode } : {}),
+          ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
+        }),
+      });
+
+    let response = await send(text, "HTML");
+    let body = response.ok ? "" : await responseBody(response);
+    if (!response.ok && isTelegramHtmlParseError(response.status, body)) {
+      response = await send(stripHtmlTags(text));
+      body = response.ok ? "" : await responseBody(response);
+    }
 
     if (!response.ok) {
-      const body = await response.text().catch(() => "");
       console.warn(
         "telegram editMessageText failed",
         JSON.stringify({ status: response.status, body: body.slice(0, 200) }),
@@ -636,9 +670,9 @@ function aliasesForAccount(accountId: string, configMap: Record<string, string>)
 }
 
 function typeLabel(categoryType: BookkeepingCategoryType): string {
-  if (categoryType === "income") return "Income";
-  if (categoryType === "transfer") return "Transfer";
-  return "Expense";
+  if (categoryType === "income") return "收入";
+  if (categoryType === "transfer") return "轉帳";
+  return "支出";
 }
 
 async function formatCategoriesMessage(
@@ -649,21 +683,21 @@ async function formatCategoriesMessage(
 ): Promise<string> {
   const records = store.categoryAliasRecords?.() || [];
   const categories = await listTransactionCategories(config, categoryType, fetchImpl);
-  const lines = [`FinOps categories${categoryType ? ` (${typeLabel(categoryType)})` : ""}:`];
+  const lines = [`<b>FinOps 分類${categoryType ? `（${typeLabel(categoryType)}）` : ""}</b>`];
   const flat = flattenCategories(categories).filter((category) => category.parentId !== "0");
 
   if (flat.length === 0) {
-    lines.push("- No leaf categories returned.");
+    lines.push("・目前沒有可用分類。");
   } else {
     for (const category of flat) {
       const aliases = aliasesForCategory(category.id, records, config.ezBookkeepingCategoryIds);
-      lines.push(`- ${category.name}${aliases.length ? `: ${aliases.join(", ")}` : ""}`);
+      lines.push(`・${escapeHtml(category.name)}${aliases.length ? `: ${escapeHtml(aliases.join(", "))}` : ""}`);
     }
   }
 
   lines.push("");
-  lines.push("Add: category add expense transport under Transportation");
-  lines.push("Confirm pending: category confirm <update_id> under Transportation");
+  lines.push("新增分類：category add expense transport under Transportation");
+  lines.push("確認待審：category confirm &lt;update_id&gt; under Transportation");
   return lines.join("\n");
 }
 
@@ -672,14 +706,14 @@ async function formatAccountsMessage(
   fetchImpl: typeof fetch,
 ): Promise<string> {
   const accounts = await listAccounts(config, fetchImpl);
-  const lines = ["FinOps accounts:"];
+  const lines = ["<b>FinOps 帳戶</b>"];
 
   if (accounts.length === 0) {
-    lines.push("- No accounts returned.");
+    lines.push("・目前沒有可用帳戶。");
   } else {
     for (const account of accounts.filter((item) => !item.hidden)) {
       const aliases = aliasesForAccount(account.id, config.ezBookkeepingAccountIds);
-      lines.push(`- ${account.name}${account.currency ? ` (${account.currency})` : ""}${aliases.length ? `: ${aliases.join(", ")}` : ""}`);
+      lines.push(`・${escapeHtml(account.name)}${account.currency ? ` (${escapeHtml(account.currency)})` : ""}${aliases.length ? `: ${escapeHtml(aliases.join(", "))}` : ""}`);
     }
   }
 
@@ -688,7 +722,7 @@ async function formatAccountsMessage(
 
 function fallbackAliasList(title: string, aliases: Record<string, string>): string {
   const names = Object.keys(aliases).sort();
-  return [title, names.length ? names.map((alias) => `- ${alias}`).join("\n") : "- No aliases configured."].join("\n");
+  return [`<b>${escapeHtml(title)}</b>`, names.length ? names.map((alias) => `・${escapeHtml(alias)}`).join("\n") : "・尚未設定別名。"].join("\n");
 }
 
 async function saveCategoryFromTelegram(
@@ -746,10 +780,10 @@ async function validateCategoryBeforeWrite(
       ok: false,
       reason: `unknown_category:${categoryType}:${categoryAlias}`,
       text: [
-        `Unknown ${categoryType} category alias: ${categoryAlias}`,
-        `To create it and retry this transaction: category confirm <update_id> under ${categoryType === "expense" ? "Miscellaneous" : "Miscellaneous"}`,
-        `Or add only the category: category add ${categoryType} ${categoryAlias}`,
-        "Use categories expense|income|transfer to list current categories.",
+        `⚠️ 未知的 ${categoryType} 分類別名：${escapeHtml(categoryAlias)}`,
+        `建立並重試此交易：category confirm <update_id> under Miscellaneous`,
+        `或只新增分類：category add ${categoryType} ${escapeHtml(categoryAlias)}`,
+        `用 categories expense|income|transfer 查看現有分類。`,
       ].join("\n"),
     };
   }
@@ -761,7 +795,7 @@ async function validateCategoryBeforeWrite(
       return {
         ok: false,
         reason: `category_type_mismatch:${expectedType}:${categoryAlias}`,
-        text: `Category alias "${categoryAlias}" is a ${actualType} category, not ${expectedType}. Use categories ${expectedType} to pick the right category.`,
+        text: `分類別名「${escapeHtml(categoryAlias)}」屬於 ${actualType}，不是 ${expectedType}。請用 categories ${expectedType} 選擇正確分類。`,
       };
     }
   } catch {
@@ -809,20 +843,31 @@ function draftIsReadyToConfirm(draft: DraftFlowState): boolean {
   return draftNeeds(draft).step === "confirm";
 }
 
+function draftTypeLabel(type: TransactionType): string {
+  if (type === "income") return "收入";
+  if (type === "transfer") return "轉帳";
+  return "支出";
+}
+
+function formatDraftAmount(amount: number): string {
+  return Number.isInteger(amount) ? amount.toLocaleString("en-US") : amount.toFixed(2);
+}
+
 function createDraftSummaryLine(draft: DraftFlowState): string {
   const currency = draft.currency || "TWD";
-  const amount = draft.amount ? `${currency} ${draft.amount.toFixed(2)}` : "not set";
+  const amount = draft.amount ? `${currency} ${formatDraftAmount(draft.amount)}` : "尚未設定";
   const date = formatDateOnly(draft.transactionDate);
+  const header = `🧾 <b>記帳草稿</b>｜${draftTypeLabel(draft.type)}`;
+  const lines = [header, `金額：${amount}`, `日期：${date}`];
   if (draft.type === "transfer") {
-    return `${draft.type.toUpperCase()} ${amount} ${date}
-From: ${draft.fromAccountName || "not set"}
-To: ${draft.toAccountName || "not set"}
-Note: ${draft.note || "-"}`;
+    lines.push(`來源：${escapeHtml(draft.fromAccountName || "尚未設定")}`);
+    lines.push(`目標：${escapeHtml(draft.toAccountName || "尚未設定")}`);
+  } else {
+    lines.push(`分類：${escapeHtml(draft.categoryName || draft.categoryAlias || "尚未設定")}`);
+    lines.push(`帳戶：${escapeHtml(draft.accountName || draft.accountAlias || "尚未設定")}`);
   }
-  return `${draft.type.toUpperCase()} ${amount} ${date}
-Category: ${draft.categoryName || draft.categoryAlias || "not set"}
-Account: ${draft.accountName || draft.accountAlias || "not set"}
-Note: ${draft.note || "-"}`;
+  lines.push(`備註：${escapeHtml(draft.note || "－")}`);
+  return lines.join("\n");
 }
 
 function draftToParsedTransaction(draft: DraftFlowState, defaultCurrency: string): ParsedTransaction {
@@ -1215,7 +1260,7 @@ export async function handleTelegramUpdate(
     await sendTelegramMessage(
       config,
       message.chatId,
-      "Unauthorized.",
+      "未授權的使用者。",
       fetchImpl,
     );
     return { status: "unauthorized", message: "Unauthorized user rejected" };
@@ -1594,7 +1639,7 @@ export async function handleTelegramUpdate(
         }
         store.confirmBookkeepingDraft?.(draft.draftId, result.transactionId || "manual");
         await answerCallbackQuery(config, message.callbackQueryId, "記帳完成。", fetchImpl);
-        await sendTelegramMessage(config, draft.chatId, `Recorded ${draft.type} ${draft.amount} ${draft.currency || effectiveConfig.defaultCurrency}.`, fetchImpl);
+        await sendTelegramMessage(config, draft.chatId, `✅ 已記帳：${draftTypeLabel(draft.type)} ${draft.currency || effectiveConfig.defaultCurrency} ${formatDraftAmount(draft.amount || 0)}`, fetchImpl);
         store.markProcessed(message.updateId, "callback_confirm");
         return { status: "accepted", message: "Draft confirmed" };
       }
@@ -1603,7 +1648,7 @@ export async function handleTelegramUpdate(
         await store.cancelBookkeepingDraft?.(draft.draftId, "cancelled_by_user");
         await answerCallbackQuery(config, message.callbackQueryId, "已取消草稿。", fetchImpl);
         store.markProcessed(message.updateId, "callback_cancel");
-        await sendTelegramMessage(config, draft.chatId, "Guided draft cancelled.", fetchImpl);
+        await sendTelegramMessage(config, draft.chatId, "已取消草稿。", fetchImpl);
         return { status: "accepted", message: "Draft cancelled" };
       }
 
@@ -1882,7 +1927,7 @@ export async function handleTelegramUpdate(
     await sendTelegramMessage(
       config,
       message.chatId,
-      `FinOps assistant ready. Pending reviews: ${store.pendingReviewCount()}.`,
+      `FinOps 就緒｜待審 ${store.pendingReviewCount()} 筆。`,
       fetchImpl,
     );
     return { status: "accepted", message: "Status sent" };
@@ -1894,16 +1939,20 @@ export async function handleTelegramUpdate(
       config,
       message.chatId,
       [
-        "FinOps commands:",
-        "status",
-        "overview today|7d|month",
-        "categories [expense|income|transfer]",
-        "accounts",
-        "category add <expense|income|transfer> <name> [under <parent>] [alias <alias>]",
-        "category confirm <update_id> [under <parent>] [alias <alias>]",
-        "expense <amount> [currency] <category> <account>",
-        "income <amount> [currency] <category> <account>",
-        "transfer <amount> <currency> from <account> to <account>",
+        "<b>FinOps 指令</b>",
+        "",
+        "📝 <b>快速記帳</b>",
+        "expense &lt;amount&gt; [currency] &lt;category&gt; &lt;account&gt;",
+        "income &lt;amount&gt; [currency] &lt;category&gt; &lt;account&gt;",
+        "transfer &lt;amount&gt; &lt;currency&gt; from &lt;account&gt; to &lt;account&gt;",
+        "",
+        "📊 <b>查詢</b>",
+        "status｜overview today|7d|month",
+        "categories [expense|income|transfer]｜accounts",
+        "",
+        "🛠 <b>分類管理</b>",
+        "category add &lt;expense|income|transfer&gt; &lt;name&gt; [under &lt;parent&gt;] [alias &lt;alias&gt;]",
+        "category confirm &lt;update_id&gt; [under &lt;parent&gt;] [alias &lt;alias&gt;]",
       ].join("\n"),
       fetchImpl,
     );
@@ -1959,7 +2008,7 @@ export async function handleTelegramUpdate(
       text = await formatCategoriesMessage(effectiveConfig, store, parsed.categoryType, fetchImpl);
     } catch (error) {
       console.warn("category list failed", error instanceof Error ? error.message : String(error));
-      text = fallbackAliasList("Configured category aliases:", effectiveConfig.ezBookkeepingCategoryIds);
+      text = fallbackAliasList("已設定的分類別名", effectiveConfig.ezBookkeepingCategoryIds);
     }
 
     store.markProcessed(message.updateId, "categories");
@@ -1973,7 +2022,7 @@ export async function handleTelegramUpdate(
       text = await formatAccountsMessage(effectiveConfig, fetchImpl);
     } catch (error) {
       console.warn("account list failed", error instanceof Error ? error.message : String(error));
-      text = fallbackAliasList("Configured account aliases:", effectiveConfig.ezBookkeepingAccountIds);
+      text = fallbackAliasList("已設定的帳戶別名", effectiveConfig.ezBookkeepingAccountIds);
     }
 
     store.markProcessed(message.updateId, "accounts");
@@ -1989,9 +2038,9 @@ export async function handleTelegramUpdate(
         config,
         message.chatId,
         [
-          `Category ready: ${typeLabel(parsed.categoryType)} / ${category.categoryName}`,
-          `Alias: ${category.alias}`,
-          `Try: ${parsed.categoryType} 80 ${effectiveConfig.defaultCurrency} ${category.alias} cash`,
+          `✅ 分類已就緒：${typeLabel(parsed.categoryType)} / ${escapeHtml(category.categoryName)}`,
+          `別名：${escapeHtml(category.alias)}`,
+          `試試：${parsed.categoryType} 80 ${effectiveConfig.defaultCurrency} ${escapeHtml(category.alias)} cash`,
         ].join("\n"),
         fetchImpl,
       );
@@ -2006,7 +2055,7 @@ export async function handleTelegramUpdate(
       await sendTelegramMessage(
         config,
         message.chatId,
-        `Category add failed and was saved for review: ${error instanceof Error ? error.message : String(error)}`,
+        `⚠️ 新增分類失敗，已存入待審：${escapeHtml(error instanceof Error ? error.message : String(error))}`,
         fetchImpl,
       );
       return { status: "pending_review", message: "Category add failed" };
@@ -2023,7 +2072,7 @@ export async function handleTelegramUpdate(
       await sendTelegramMessage(
         config,
         message.chatId,
-        `No pending transaction found for update ${parsed.updateId}.`,
+        `找不到 update ${parsed.updateId} 對應的待審交易。`,
         fetchImpl,
       );
       return { status: "failed", message: "Pending transaction not found" };
@@ -2055,7 +2104,7 @@ export async function handleTelegramUpdate(
         await sendTelegramMessage(
           config,
           message.chatId,
-          "Category was created, but the pending transaction still could not be written to ezBookkeeping.",
+          "⚠️ 分類已建立，但待審交易仍無法寫入 ezBookkeeping。",
           fetchImpl,
         );
         return { status: "pending_review", message: "Category created but retry failed" };
@@ -2066,7 +2115,7 @@ export async function handleTelegramUpdate(
       await sendTelegramMessage(
         config,
         message.chatId,
-        `Category ${category.categoryName} created, alias ${category.alias} saved, and pending transaction recorded.`,
+        `✅ 已建立分類 ${escapeHtml(category.categoryName)}（別名 ${escapeHtml(category.alias)}），並記錄待審交易。`,
         fetchImpl,
       );
       return { status: "accepted", message: "Category confirmed and transaction recorded" };
@@ -2075,7 +2124,7 @@ export async function handleTelegramUpdate(
       await sendTelegramMessage(
         config,
         message.chatId,
-        `Category confirmation failed: ${error instanceof Error ? error.message : String(error)}`,
+        `⚠️ 確認分類失敗：${escapeHtml(error instanceof Error ? error.message : String(error))}`,
         fetchImpl,
       );
       return { status: "pending_review", message: "Category confirmation failed" };
@@ -2092,7 +2141,7 @@ export async function handleTelegramUpdate(
     await sendTelegramMessage(
       config,
       message.chatId,
-      "Correction saved for review.",
+      "已存入待審：更正請求。",
       fetchImpl,
     );
     return {
@@ -2111,7 +2160,7 @@ export async function handleTelegramUpdate(
     await sendTelegramMessage(
       config,
       message.chatId,
-      `I need more detail: ${parsed.missing.join(", ")}.`,
+      `需要更多資訊：${escapeHtml(parsed.missing.join("、"))}。`,
       fetchImpl,
     );
     return {
@@ -2160,7 +2209,7 @@ export async function handleTelegramUpdate(
     await sendTelegramMessage(
       config,
       message.chatId,
-      "Transaction saved for review because ezBookkeeping write failed.",
+      "⚠️ ezBookkeeping 寫入失敗，交易已存入待審。",
       fetchImpl,
     );
     return {
@@ -2173,7 +2222,7 @@ export async function handleTelegramUpdate(
   await sendTelegramMessage(
     config,
     message.chatId,
-    `Recorded ${parsed.transaction.type} ${parsed.transaction.amount} ${parsed.transaction.currency}.`,
+    `✅ 已記帳：${draftTypeLabel(parsed.transaction.type)} ${parsed.transaction.currency} ${formatDraftAmount(parsed.transaction.amount)}`,
     fetchImpl,
   );
   return { status: "accepted", message: "Transaction recorded" };

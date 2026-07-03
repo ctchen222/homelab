@@ -156,8 +156,9 @@ test("telegram webhook can reply through webhook response without outbound Bot A
   assert.deepEqual(response.body, {
     method: "sendMessage",
     chat_id: 100,
-    text: "FinOps assistant ready. Pending reviews: 3.",
-    disable_web_page_preview: true
+    text: "FinOps 就緒｜待審 3 筆。",
+    disable_web_page_preview: true,
+    parse_mode: "HTML"
   });
 });
 
