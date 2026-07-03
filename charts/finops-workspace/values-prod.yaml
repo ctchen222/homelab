@@ -34,7 +34,7 @@ ezbookkeeping:
 assistant:
   image:
     repository: ghcr.io/ctchen222/finops-assistant
-    tag: "main-a1dd3b109b1630eed6c0abeb82da2d10bf27feab"
+    tag: "main-90b645b4b96d0614cbc84e364231703762e6c512"
   ingress:
     enabled: false
   webhookIngress:
@@ -55,4 +55,4 @@ wealthfolio:
 marketResearch:
   image:
     repository: ghcr.io/ctchen222/finops-market-research
-    tag: "main-a1dd3b109b1630eed6c0abeb82da2d10bf27feab"
+    tag: "main-90b645b4b96d0614cbc84e364231703762e6c512"
