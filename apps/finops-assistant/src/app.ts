@@ -65,6 +65,7 @@ interface TelegramWebhookReply {
   chat_id: number | string;
   text: string;
   disable_web_page_preview: boolean;
+  parse_mode?: string;
   reply_markup?: unknown;
 }
 
@@ -107,6 +108,7 @@ function telegramWebhookReplyFromBody(body: BodyInit | null | undefined): Telegr
       chat_id?: unknown;
       text?: unknown;
       disable_web_page_preview?: unknown;
+      parse_mode?: unknown;
       reply_markup?: unknown;
     };
 
@@ -119,6 +121,7 @@ function telegramWebhookReplyFromBody(body: BodyInit | null | undefined): Telegr
       chat_id: payload.chat_id,
       text: payload.text,
       disable_web_page_preview: payload.disable_web_page_preview !== false,
+      ...(typeof payload.parse_mode === "string" ? { parse_mode: payload.parse_mode } : {}),
       ...(payload.reply_markup ? { reply_markup: payload.reply_markup } : {}),
     };
   } catch {

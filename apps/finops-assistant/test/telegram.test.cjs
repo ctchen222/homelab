@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { handleTelegramUpdate } = require("../dist/telegram.js");
+const { handleTelegramUpdate, sendTelegramMessage } = require("../dist/telegram.js");
 
 function store(processed = new Set(), overrides = {}) {
   const pending = [];
@@ -209,6 +209,44 @@ test("sends help for authorized help request", async () => {
   assert.match(messages[0].text, /category add/);
 });
 
+test("falls back to plain Telegram text only for HTML entity parse errors", async () => {
+  const calls = [];
+  const result = await sendTelegramMessage(config, 100, "<b>FinOps</b> <bad>", async (_url, init = {}) => {
+    const body = JSON.parse(init.body);
+    calls.push(body);
+    if (calls.length === 1) {
+      return {
+        ok: false,
+        status: 400,
+        text: async () => "Bad Request: can't parse entities: Unsupported start tag \"bad\""
+      };
+    }
+    return { ok: true, status: 200, text: async () => "" };
+  });
+
+  assert.equal(result, true);
+  assert.equal(calls.length, 2);
+  assert.equal(calls[0].parse_mode, "HTML");
+  assert.equal(calls[1].parse_mode, undefined);
+  assert.equal(calls[1].text, "FinOps ");
+});
+
+test("does not hide non-HTML Telegram 400 errors with plain fallback", async () => {
+  const calls = [];
+  const result = await sendTelegramMessage(config, 100, "<b>FinOps</b>", async (_url, init = {}) => {
+    calls.push(JSON.parse(init.body));
+    return {
+      ok: false,
+      status: 400,
+      text: async () => "Bad Request: chat not found"
+    };
+  });
+
+  assert.equal(result, false);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].parse_mode, "HTML");
+});
+
 test("sends spending overview for authorized overview request", async () => {
   const s = store();
   const overviewConfig = {
@@ -244,13 +282,14 @@ test("sends spending overview for authorized overview request", async () => {
 
   assert.equal(result.status, "accepted");
   assert.equal(s.isProcessed(8), true);
-  assert.match(messages[0].text, /FinOps Period Overview/);
-  assert.match(messages[0].text, /Transactions: 1 \(income 0, expense 1, transfer 0\)/);
-  assert.match(messages[0].text, /Expenses: TWD 120.00/);
-  assert.match(messages[0].text, /Expense categories:/);
-  assert.match(messages[0].text, /Food: TWD 120.00 \(100.0%\) \[##################\]/);
-  assert.match(messages[0].text, /Account movement:/);
-  assert.match(messages[0].text, /Cash: TWD -120.00 \(100.0%\)/);
+  assert.match(messages[0].text, /FinOps 收支總覽/);
+  assert.match(messages[0].text, /交易：1 筆（收入 0、支出 1、轉帳 0）/);
+  assert.match(messages[0].text, /支出：TWD 120/);
+  assert.match(messages[0].text, /<b>支出分類<\/b>/);
+  assert.match(messages[0].text, /Food：TWD 120（100%）<code>▓+<\/code>/);
+  assert.match(messages[0].text, /<b>帳戶異動<\/b>/);
+  assert.match(messages[0].text, /Cash：TWD -120（100%）/);
+  assert.equal(messages[0].parse_mode, "HTML");
 });
 
 test("queues ambiguous transaction for review", async () => {
@@ -281,6 +320,8 @@ test("sends category list with aliases", async () => {
   assert.equal(result.status, "accepted");
   assert.match(messages[0].text, /Lunch: food/);
   assert.match(messages[0].text, /category add expense transport/);
+  assert.match(messages[0].text, /category confirm &lt;update_id&gt; under Transportation/);
+  assert.equal(messages[0].parse_mode, "HTML");
 });
 
 test("sends account list with aliases", async () => {
@@ -347,7 +388,7 @@ test("adds category through Telegram and persists alias", async () => {
 
   assert.equal(result.status, "accepted");
   assert.equal(s.aliases.transport, "category-transport");
-  assert.match(messages[0].text, /Category ready/);
+  assert.match(messages[0].text, /分類已就緒/);
 });
 
 test("records valid transaction through ezBookkeeping", async () => {
@@ -457,7 +498,7 @@ test("confirms unknown category and retries pending transaction", async () => {
   assert.equal(result.status, "accepted");
   assert.equal(s.pending[0].resolved, true);
   assert.equal(retriedConfig.ezBookkeepingCategoryIds.transport, "category-transport");
-  assert.match(messages[0].text, /pending transaction recorded/);
+  assert.match(messages[0].text, /已建立分類.*並記錄待審交易/);
 });
 
 test("queues valid transaction when ezBookkeeping fails", async () => {
