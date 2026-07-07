@@ -37,6 +37,12 @@ function decimalDivide(left, right) {
   return String(Number(decimalText(left)) / divisor);
 }
 
+function decimalRoundedText(value, digits = 8) {
+  const parsed = Number(decimalText(value));
+  if (!Number.isFinite(parsed)) return decimalText(value);
+  return parsed.toFixed(digits).replace(/\.?0+$/, "");
+}
+
 function isNonZeroDecimal(value) {
   return Number(decimalText(value)) !== 0;
 }
@@ -254,6 +260,7 @@ function buildWealthfolioProjection(snapshots, now = new Date(), options = {}) {
     const openAssetIds = [];
     const activityCostBasis = buildActivityCostBasis(snapshot.activityRows);
     let totalCostBasis = "0";
+    let investmentMarketValue = "0";
     let positionCount = 0;
     let quoteCount = 0;
 
@@ -309,6 +316,7 @@ function buildWealthfolioProjection(snapshots, now = new Date(), options = {}) {
       positions[assetId] = position;
       openAssetIds.push(assetId);
       totalCostBasis = decimalAdd(totalCostBasis, costBasis);
+      investmentMarketValue = decimalAdd(investmentMarketValue, marketValueProjection.amount);
       positionCount += 1;
 
       statements.push(`
@@ -423,6 +431,13 @@ function buildWealthfolioProjection(snapshots, now = new Date(), options = {}) {
       cashTotal = decimalAdd(cashTotal, converted.amount);
     }
     const netContribution = decimalAdd(totalCostBasis, cashTotal);
+    const totalValue = decimalAdd(investmentMarketValue, cashTotal);
+    const valuationCashTotal = decimalRoundedText(cashTotal);
+    const valuationInvestmentMarketValue = decimalRoundedText(investmentMarketValue);
+    const valuationTotalValue = decimalRoundedText(totalValue);
+    const valuationTotalCostBasis = decimalRoundedText(totalCostBasis);
+    const valuationNetContribution = decimalRoundedText(netContribution);
+    const valuationId = `${accountId}_${date}`;
 
     statements.push(`
       INSERT OR REPLACE INTO holdings_snapshots (
@@ -436,6 +451,44 @@ function buildWealthfolioProjection(snapshots, now = new Date(), options = {}) {
         ${quoteSql(nowIso)}, ${quoteSql(netContribution)}, ${quoteSql(cashTotal)}, ${quoteSql(cashTotal)},
         'BROKER_IMPORTED'
       );
+    `);
+
+    statements.push(`
+      INSERT INTO daily_account_valuation (
+        id, account_id, valuation_date, account_currency, base_currency,
+        fx_rate_to_base, cash_balance, investment_market_value, total_value,
+        cost_basis, net_contribution, cash_balance_base,
+        investment_market_value_base, total_value_base, cost_basis_base,
+        net_contribution_base, external_inflow_base, external_outflow_base,
+        performance_eligible_value_base, calculated_at, external_flow_source
+      ) VALUES (
+        ${quoteSql(valuationId)}, ${quoteSql(accountId)}, ${quoteSql(date)},
+        ${quoteSql(displayCurrency)}, ${quoteSql(displayCurrency)}, '1',
+        ${quoteSql(valuationCashTotal)}, ${quoteSql(valuationInvestmentMarketValue)}, ${quoteSql(valuationTotalValue)},
+        ${quoteSql(valuationTotalCostBasis)}, ${quoteSql(valuationNetContribution)}, ${quoteSql(valuationCashTotal)},
+        ${quoteSql(valuationInvestmentMarketValue)}, ${quoteSql(valuationTotalValue)}, ${quoteSql(valuationTotalCostBasis)},
+        ${quoteSql(valuationNetContribution)}, '0', '0', ${quoteSql(valuationTotalValue)},
+        ${quoteSql(nowIso)}, 'FINOPS_SNAPSHOT_SYNC'
+      )
+      ON CONFLICT(id) DO UPDATE SET
+        account_currency=excluded.account_currency,
+        base_currency=excluded.base_currency,
+        fx_rate_to_base=excluded.fx_rate_to_base,
+        cash_balance=excluded.cash_balance,
+        investment_market_value=excluded.investment_market_value,
+        total_value=excluded.total_value,
+        cost_basis=excluded.cost_basis,
+        net_contribution=excluded.net_contribution,
+        cash_balance_base=excluded.cash_balance_base,
+        investment_market_value_base=excluded.investment_market_value_base,
+        total_value_base=excluded.total_value_base,
+        cost_basis_base=excluded.cost_basis_base,
+        net_contribution_base=excluded.net_contribution_base,
+        external_inflow_base=excluded.external_inflow_base,
+        external_outflow_base=excluded.external_outflow_base,
+        performance_eligible_value_base=excluded.performance_eligible_value_base,
+        calculated_at=excluded.calculated_at,
+        external_flow_source=excluded.external_flow_source;
     `);
 
     summary.push({

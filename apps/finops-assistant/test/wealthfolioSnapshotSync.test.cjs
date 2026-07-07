@@ -33,6 +33,29 @@ function makeWealthfolioDb() {
         timestamp TEXT,
         UNIQUE(asset_id, day, source)
       );
+      CREATE TABLE daily_account_valuation (
+        id TEXT PRIMARY KEY NOT NULL,
+        account_id TEXT NOT NULL,
+        valuation_date DATE NOT NULL,
+        account_currency TEXT NOT NULL,
+        base_currency TEXT NOT NULL,
+        fx_rate_to_base TEXT NOT NULL,
+        cash_balance TEXT NOT NULL,
+        investment_market_value TEXT NOT NULL,
+        total_value TEXT NOT NULL,
+        cost_basis TEXT NOT NULL,
+        net_contribution TEXT NOT NULL,
+        cash_balance_base TEXT NOT NULL DEFAULT '0',
+        investment_market_value_base TEXT NOT NULL DEFAULT '0',
+        total_value_base TEXT NOT NULL DEFAULT '0',
+        cost_basis_base TEXT NOT NULL DEFAULT '0',
+        net_contribution_base TEXT NOT NULL DEFAULT '0',
+        external_inflow_base TEXT NOT NULL DEFAULT '0',
+        external_outflow_base TEXT NOT NULL DEFAULT '0',
+        performance_eligible_value_base TEXT NOT NULL DEFAULT '0',
+        calculated_at TEXT NOT NULL,
+        external_flow_source TEXT NOT NULL DEFAULT 'UNKNOWN'
+      );
     `,
     encoding: "utf8"
   });
@@ -124,6 +147,65 @@ test("Wealthfolio snapshot sync builds holdings-mode projection from normalized 
   assert.doesNotMatch(sql, /Closed Holding/);
   assert.doesNotMatch(sql, /FINOPS_MARKET/);
   assert.doesNotMatch(sql, /undefined/);
+});
+
+test("Wealthfolio snapshot sync upserts daily valuation from latest snapshot values", (t) => {
+  const paths = makeWealthfolioDb();
+  t.after(() => rmSync(paths.dir, { recursive: true, force: true }));
+  const now = new Date("2026-07-07T05:50:01.507Z");
+  const projection = buildWealthfolioProjection(
+    [
+      {
+        run: {
+          sync_run_id: "sync-valuation",
+          broker_id: "sinopac",
+          account_alias: "sinopac-main",
+          source_type: "live-api",
+          source_name: "sinopac-shioaji",
+          source_timestamp: "2026-07-07T05:40:01.869Z",
+          freshness_status: "partial",
+          missing_fields_json: "[\"holdings.marketValue\"]",
+          base_currency: "TWD",
+          as_of: "2026-07-07T05:40:01.869Z",
+          created_at: "2026-07-07T05:40:04.198Z"
+        },
+        holdings: [
+          {
+            market: "TWSE",
+            symbol: "0050",
+            provider_symbol: "0050",
+            security_name: "Yuanta Taiwan 50",
+            asset_type: "stock",
+            currency: "TWD",
+            quantity: "1319",
+            average_cost: "64.07",
+            cost_basis: "84508.33",
+            last_price: "106.2",
+            market_value: "",
+            as_of: "2026-07-07T05:40:01.869Z"
+          }
+        ],
+        cashBalances: [{ currency: "TWD", amount: "55156", balance_type: "available", as_of: "2026-07-07T05:40:01.869Z" }]
+      }
+    ],
+    now
+  );
+
+  const valuationStatements = projection.statements.filter((statement) => statement.includes("daily_account_valuation")).join("\n");
+  execFileSync("sqlite3", [paths.dbPath], { input: valuationStatements, encoding: "utf8" });
+
+  const rows = runQuery(paths.dbPath, "SELECT valuation_date, cash_balance, investment_market_value, total_value, cost_basis, net_contribution, external_flow_source FROM daily_account_valuation;");
+  assert.deepEqual(rows, [
+    {
+      valuation_date: "2026-07-07",
+      cash_balance: "55156",
+      investment_market_value: "140077.8",
+      total_value: "195233.8",
+      cost_basis: "84508.33",
+      net_contribution: "139664.33",
+      external_flow_source: "FINOPS_SNAPSHOT_SYNC"
+    }
+  ]);
 });
 
 test("SinoPac FINOPS_BROKER quote stays canonical when no FINOPS_MARKET rows are present", (t) => {
